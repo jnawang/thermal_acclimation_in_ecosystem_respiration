@@ -1,0 +1,614 @@
+---
+title: "respiration_model"
+output: pdf_document
+date: "2024-01-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r check measured respiration data only}
+library("amerifluxr")
+library(Kendall)
+library(xts)
+library(lubridate)
+library(tidyverse)
+library(Rbeast)
+library(suncalc)
+library(ggpubr)
+library(ppcor)
+library(car)
+library(lutz)
+library(REddyProc)
+rm(list=ls())
+#
+# get site information such as long and lat
+name_site <- 'US-IB2'
+sites <- amf_site_info()
+site  <- sites %>% filter(SITE_ID==name_site)
+long_site  <- site$LOCATION_LONG
+lat_site   <- site$LOCATION_LAT
+elevation  <- site$LOCATION_ELEV   # m
+# time zone: this is the thing I am mostly unhappy. I used wiki pedia https://upload.wikimedia.org/wikipedia/commons/8/88/World_Time_Zones_Map.png
+# check
+tz <- tz_offset(as.Date("2000-01-01"), tz_lookup_coords(lat=lat_site, lon=long_site, method='accurate'))
+# put the exact time zone
+if (tz$utc_offset_h > 0) {
+  tz_site  <- paste0('GMT-', tz$utc_offset_h)
+} else {
+  tz_site  <- paste0('GMT+', -tz$utc_offset_h)
+}
+#
+#
+data_dir <- "/Users/jw2946/Documents/stability_project/SiteData"
+files <- list.files(data_dir, pattern="zip", full.names = T)
+# create a time series for harward forests
+a <- amf_read_base(files[grepl(name_site, files)], parse_timestamp=TRUE, unzip = T)
+#
+ac <- a[, 1:7]
+ac$ndays <- 365                         # number of days in a year
+ac$ndays[leap_year(ac$YEAR)] <- 366
+# add time column
+a$time <- a$YEAR + a$DOY/ac$ndays
+#
+# get sunrise and sunset time
+sunrise_set <- getSunlightTimes(
+    date = seq.Date(as.Date(a$TIMESTAMP[1]), as.Date(a$TIMESTAMP[nrow(a)]), by = 1),       # Date format: YYYY-MM-DD
+    keep = c("sunrise", "sunset"),
+    lat = lat_site,
+    lon = long_site,
+    tz  = tz_site
+  )
+
+# Force the time zone to GMT in order to be consistent with the date format in AmeriFlux database
+sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT')
+sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT')
+
+# determine: day-time or night-time
+ac$DATE <- as.Date(ac$TIMESTAMP) 
+ac <- ac %>% left_join(sunrise_set, by = c('DATE' = 'date'))
+
+dt <- a$TIMESTAMP[2] - a$TIMESTAMP[1]
+# a$daytime <- a$TIMESTAMP >= ac$sunrise & a$TIMESTAMP <= ac$sunset | a$TIMESTAMP - dt/2.0 < ac$sunrise & ac$sunrise < a$TIMESTAMP + dt/2.0 | a$TIMESTAMP - dt/2.0 < ac$sunset & ac$sunset < a$TIMESTAMP + dt/2.0
+#
+# another way to calculate this
+a$daytime <- a$TIMESTAMP + dt/2.0 >= ac$sunrise & a$TIMESTAMP - dt/2.0 <= ac$sunset
+# this is an hourly dataset
+#
+#
+######################Obtain exactly measured night respiration######################################
+#
+# Here, this dataset has FC_1_1_1, and SC
+plot(a$FC)                # 
+# plot(a$SC)              # no data
+plot(a$TA)                # 
+plot(a$TS_1_1_1)          # miss some years
+plot(a$SWC_1_1_1)         # no SWC data; this may have problem. 
+# 
+# summary(lm(data=a, SWC_1_1_2 ~ SWC_1_1_3))  # only use SWC_1_1_2
+#
+plot(a$SW_IN)             # miss data
+plot(a$RH)
+plot(a$USTAR)
+#
+######################################decide which variables to use#######################################
+# modify the dataframe ac
+if ("ndays" %in% colnames(ac)) {
+  ac = subset(ac, select=-c(ndays, DATE, lat, lon, sunrise, sunset))
+}
+ac$NEE <- a$FC              # need to change here for each site; the correct variables
+ac$TA  <- a$TA
+ac$TS  <- a$TS_1_1_1        # add some more data
+# ac$TS  <- readRDS(paste0('/Users/jw2946/Documents/stability_project/code/', name_site, '_TS_rfp.RDS'))
+ac$SWC <- a$SWC_1_1_1
+ac$daytime <- a$daytime
+ac$SW_IN   <- a$SW_IN
+ac$USTAR   <- a$USTAR
+ac$RH      <- a$RH
+#########################################################################################################
+##########################################do Ustar filtering#############################################
+NEE_yearly <- ac %>% group_by(DOY) %>% summarise(NEE=mean(NEE, na.rm=T), TS=mean(TS, na.rm=T))   # replace the name of NEE;
+plot(NEE_yearly$DOY, NEE_yearly$NEE)
+#
+# I will use the mean of the first three values, and the mean of the last three values
+tmp    <- NEE_yearly %>% filter(NEE < min(NEE_yearly$NEE, na.rm=T) * 0.2)
+# start and end DOY of growing season
+# gStart <- as.integer(mean(tmp$DOY[1:3]))
+# gEnd   <- as.integer(mean(tmp$DOY[(nrow(tmp)-2):nrow(tmp)]))
+#
+gStart <- as.integer(mean(tmp$DOY[7])) - 4
+gEnd   <- as.integer(mean(tmp$DOY[(nrow(tmp)-6)])) + 4
+gStart
+gEnd
+#
+# temperature range of growing season
+tStart = as.integer(quantile(tmp$TS, c(0.025), na.rm=T) * 10) + 1     #
+tEnd   = as.integer(quantile(tmp$TS, c(0.975), na.rm=T) * 10) + 1     #
+#
+# Create seasonStarts with two columns: one is day, and the other is year!
+years  <- unique(ac$YEAR)
+seasonStarts <- data.frame(DOY = rep(c(gStart, gEnd), length(years)), YEAR=rep(years, each=2))
+#
+# create the data frame
+ac_u       <- data.frame(DateTime = ymd_hm(a$TIMESTAMP_END))   # The first dataset has to be 00:30, so weird. 
+ac_u$NEE   <- ac$NEE
+# ac_u$Rg    <- a$SW_IN_1_1_1              # I need to do a little bit change of this.    
+# ac_u$Rg[ac_u$Rg < 0] <- 0.0
+# incomplete SW_IN data, so I will use PPFD_IN_1_1_1
+ac_u$Rg    <- ac$SW_IN
+ac_u$Tair  <- ac$TA
+ac_u$Ustar <- ac$USTAR
+ac_u$rH    <- ac$RH
+#
+ac_u$VPD <- fCalcVPDfromRHandTair(ac_u$rH, ac_u$Tair)
+
+EProc    <- sEddyProc$new(name_site, ac_u, c('NEE', 'Rg', 'Tair', 'VPD', 'Ustar'))   # sometimes, DTS.n=24   
+# Rg should not have negative values. 
+EProc$sSetLocationInfo(LatDeg = lat_site, LongDeg = long_site, TimeZoneHour = tz$utc_offset_h)
+# 
+ac_u$season <- usCreateSeasonFactorYdayYear(
+  ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min. 
+uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+# gap fill NEE, air temperature and soil temperature
+# By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
+# we can also use a different threshold for each of the defined seasons, by calling the two functions
+# EProc$useSeaonsalUStarThresholds()
+# EProc$sGetUstarScenarios()
+# I only want annually aggregated estimated, because some sites have no seasonal estimates
+EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
+ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
+#
+ac_u <- ac_u %>% left_join(uStarTh[,3:4], by="season")
+ac$uStarTh <- ac_u$uStar
+#
+#########################################end with Ustar filtering#######################################
+# if no SWC measurement, need to remove it here. 
+a_measure     <- ac %>% filter(!is.na(NEE) & !is.na(TS) & !is.na(SWC) & !is.na(USTAR)) %>% filter(USTAR >= uStarTh)
+#   
+# 
+a_measure_night <- a_measure %>% filter(!daytime)  # SW_IN < 10 | 
+# clear data in 2019
+# 
+for (i in years) {
+  # i = 2004
+  a_measure_night_year <- a_measure_night %>% filter(YEAR==i)
+  # check length of gaps and do a distribution
+  # we lack soil moisture data in 2018;
+  if (nrow(a_measure_night_year) > 1) {
+    gap <- as.integer(a_measure_night_year$TIMESTAMP[2:nrow(a_measure_night_year)] - a_measure_night_year$TIMESTAMP[1:(nrow(a_measure_night_year)-1)])
+    plot(a_measure_night_year$TS, a_measure_night_year$NEE, main=as.character(i), xlim=c(-10, 40), ylim=c(-10, 40))      # TA_1_1_1 
+    # check air temperature and soil temperature relationship
+    plot(a_measure_night_year$TA, a_measure_night_year$TS, main=as.character(i), xlim=c(-10, 40), ylim=c(-5, 40))
+    # see gaps each year
+    plot(a_measure_night_year$TIMESTAMP, a_measure_night_year$NEE, main=as.character(i), xlim=c(as.POSIXct(paste0(i, "-01-01 00:00:00")), as.POSIXct(paste0(i, "-12-31 00:00:00"))))
+  } else {
+    print(i)
+  }
+}
+# remove years with big gap  
+a_measure_night_complete <- a_measure_night %>% filter(!YEAR %in% c(2004, 2014, 2017)) # 2018?
+#
+a_measure_night_complete <- a_measure_night_complete %>% dplyr::select(c(YEAR, MONTH, DAY, DOY, HOUR, MINUTE, NEE, TA, TS, SWC))
+
+# what I really need to use is the two datasets: a_measure_night_complete, ac
+iStart = a_measure_night_complete$YEAR[1]
+iEnd   = a_measure_night_complete$YEAR[nrow(a_measure_night_complete)]
+# do I want to adjust the range of temperature?
+tStart
+tEnd
+
+# I have to gap fill TA, TS, NEE; 
+T_gf <- ac %>% group_by(DOY, HOUR, MINUTE) %>% summarise(TA_gf=mean(TA, na.rm=T), TS_gf=mean(TS, na.rm=T), NEE_gf=mean(NEE_uStar_f, na.rm=T))  # for gap fill only.
+if (!"TA_gf" %in% colnames(ac)) {
+  ac   <- ac %>% left_join(T_gf, by=c("DOY", "HOUR", "MINUTE"))
+}
+# I still need a standard gap-fill methods. 
+if (sum(is.na(ac$TA)) > 0) {
+  ac$TA[is.na(ac$TA)] <- ac$TA_gf[is.na(ac$TA)]
+}
+if (sum(is.na(ac$TS)) > 0) {
+  ac$TS[is.na(ac$TS)] <- ac$TS_gf[is.na(ac$TS)]
+}
+if (sum(is.na(ac$NEE_uStar_f)) > 0) {
+  ac$NEE_uStar_f[is.na(ac$NEE_uStar_f)] <- ac$NEE_gf[is.na(ac$NEE_uStar_f)]
+}
+
+# save the ac and a_measure_night_complete data:
+data_dir <- '/Users/jw2946/Documents/stability_project/RespiarationData/'
+saveRDS(ac, file=paste0(data_dir, name_site, '_ac.RDS'))
+saveRDS(a_measure_night_complete, file=paste0(data_dir, name_site, '_nightNEE.RDS'))
+# check growing season time and temperature before moving on!
+
+```
+
+```{r I need to have a function to predict soil temperature}
+library(randomForest)
+library(caret)
+# three variables are used for prediction
+# separate data into trained or tested
+set.seed(222)
+ind <- sample(2, nrow(a), replace = TRUE, prob = c(0.7, 0.3))
+data  <- a[,c("TS_1_1_1", "T_SONIC", "DOY", "NETRAD")]
+train <- data[ind==1,]         # solar radiation in and out
+test  <- data[ind==2,]
+# remove NA data
+train <- na.omit(train)
+test  <- na.omit(test)
+#
+# this is super slow
+rf <- randomForest(formula = TS_1_1_1 ~ T_SONIC + DOY, data=train)  # this takes lots of time  + NETRAD
+y0 <- predict(rf, train)
+y1 <- predict(rf, test)
+postResample(pred=y0, obs=train$TS_1_1_1)  
+#      RMSE  Rsquared       MAE 
+# 1.5669534 0.9647931 1.1563216 
+postResample(pred=y1, obs=test$TS_1_1_1)
+#      RMSE  Rsquared       MAE 
+# 2.3808412 0.9178371 1.7450147
+
+# I want to have a function, this is really slow. 
+# do the prediction
+data$TS_pred <- predict(rf, data)
+# save the model
+saveRDS(data$TS_pred, file=paste0(name_site, '_TS_rfp.RDS'))
+#
+
+```
+
+
+```{r identify the months with warming}
+data_monthly <- ac %>% filter(YEAR >= iStart & YEAR <= iEnd) %>% group_by(YEAR, MONTH) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T))  # respiration is mainly from April to December; seasonal difference in respiration declines.  
+#-------------------------------------------------------------------------------------------------------
+# monthly trend of air temperature: 
+for (i in 1:12) {
+  print(paste('Air Temperature Month', i))
+  data <- data_monthly %>% filter(MONTH == i)
+  print(summary(lm(data=data, TA~YEAR))$coefficients)
+}
+#
+# monthly trend of temperature
+data_monthly$MONTH <- as.factor(data_monthly$MONTH)
+ggplot(data_monthly, aes(x=YEAR, y=TA, color=MONTH)) +   
+  geom_point() +
+  geom_smooth(method = lm) +
+  # stat_cor(color='green') + 
+  labs(title='Trend of monthly air Temperature')
+
+############################################################################################################
+# monthly trend of soil temperature: interesting! no month shows increasing soil temperature
+for (i in 1:12) {
+  print(paste('Soil Temperature Month', i))
+  data <- data_monthly %>% filter(MONTH == i)
+  print(summary(lm(data=data, TS~YEAR))$coefficients)
+}
+#
+# monthly trend of temperature
+ggplot(data_monthly, aes(x=YEAR, y=TS, color=MONTH)) +   
+  geom_point() +
+  geom_smooth(method = lm) +
+  # stat_cor(color='green') + 
+  labs(title='Trend of monthly soil Temperature')
+
+# soil moisture: 1, 4, 6 increasing. 
+for (i in 1:12) {
+  print(paste('Soil Moisture Month', i))
+  data <- data_monthly %>% filter(MONTH == i)
+  print(summary(lm(data=data, SWC~YEAR))$coefficients)
+}
+#
+# monthly trend of temperature
+ggplot(data_monthly, aes(x=YEAR, y=SWC, color=MONTH)) +   
+  geom_point() +
+  geom_smooth(method = lm) +
+  # stat_cor(color='green') + 
+  labs(title='Trend of monthly soil moisture')
+
+```
+
+```{r night NEE}
+# this data is not gap-filled. 
+data_monthly_night <- ac %>% filter(YEAR >= iStart & YEAR <= iEnd) %>% filter(!daytime) %>% group_by(YEAR, MONTH) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), NEE=mean(NEE, na.rm=T)) 
+data_monthly_night$MONTH <- as.factor(data_monthly_night$MONTH)
+#
+# monthly trend of night NEE: NEE increased a lot in May and June
+for (i in 1:12) {
+  print(paste('NEE Month', i))
+  data <- data_monthly_night %>% filter(MONTH == i)
+  print(summary(lm(data=data, NEE~YEAR))$coefficients)
+}
+#
+# monthly trend of night NEE: 5, 6; similar to NEE
+ggplot(data_monthly_night, aes(x=YEAR, y=NEE, color=MONTH)) +   
+  geom_point() +
+  geom_smooth(method = lm) +
+  # stat_cor(color='green') + 
+  labs(title='Trend of monthly night NEE')
+
+```
+
+```{r yearly pattern}
+# turbulent life
+year_pattern <- ac %>% filter(YEAR >= iStart & YEAR <= iEnd)  %>% group_by(DOY) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T), NEE=mean(NEE, na.rm=T))
+plot(year_pattern$TA)
+plot(year_pattern$TS)
+plot(year_pattern$NEE)
+plot(year_pattern$SWC)
+
+year_pattern_night <- ac %>% filter(!daytime) %>% filter(YEAR >= iStart & YEAR <= iEnd)  %>% group_by(DOY) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T), NEE=mean(NEE, na.rm=T))
+plot(year_pattern_night$TA)
+plot(year_pattern_night$TS)
+plot(year_pattern_night$NEE)
+plot(year_pattern_night$SWC)
+
+tmp <- year_pattern %>% filter(NEE < -0.5)     # growing season DOY 210-272; 
+
+TSmn=mean(tmp$TS)        # 29.43
+TSmin=min(tmp$TS)        # 24.9   (25)
+TSmax=max(tmp$TS)        # 30.94  (31)
+#
+TAmn=mean(tmp$TA)        # 25.598
+TAmin=min(tmp$TA)        # 20.82
+TAmax=max(tmp$TA)        # 27.16
+
+SWCmn=mean(tmp$SWC)      # 5.45   (They rely so little water!)
+
+# each year: soil temperature of the growing season; and make sure we have enough observation data for each year. 
+for (i in iStart:iEnd) {
+  tmp <- a_measure_night_complete %>% filter(YEAR %in% c(i)) %>% filter(TS > 0 & TS < 35)
+  if (nrow(tmp) > 0) {
+    plot(tmp$TS, tmp$NEE, main=i)
+    print(i)
+    print(quantile(tmp$TS, c(0.025, 0.05, 0.5, 0.95, 0.975)))    
+  }
+}
+
+# correct for tStart and tEnd
+#tEnd <- 248
+# growing season from DOY 163 to 251. 
+```
+
+```{r try the five models first, fig.width=6, fig.hight=5}
+library(gslnls)
+library(caret)
+library(performance)
+#
+# put this to a_measure_night_complete; do not use data in 2000 
+data <- a_measure_night_complete %>% filter(YEAR >= iStart)
+#----------------------------------------------------------------------------------------------------------------------
+# check data quality first
+plot(data$TS, data$NEE)
+plot(data$DOY, data$NEE)
+#-----------------------------------------------------------------------------------------------------------------------
+# model 1: linear exponential
+frmu   <- NEE ~ C_pool * exp(alpha * TS) * SWC / (Hs + SWC)    # in this formula: C_pool, alpha, beta, and Hs are unclear parameters. I know Cpool and Hs should be positive;
+stprm  <- c(C_pool=1, alpha=0.1, Hs = 20)
+df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)
+# mod1 <-try(nlxb(formula=frmu, start=stprm, data=df_accurate, lower=c(0, -1000, 0), upper=c(1000, -1000, 40)))
+# print(mod1)
+mod1 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+summary(mod1)
+NEE_pred <- predict(mod1, newdata=df_accurate)
+plot(df_accurate$TS, df_accurate$NEE)
+# check performance
+postResample(pred=NEE_pred, obs=df_accurate$NEE)
+performance_aicc(mod1)
+#  RMSE     Rsquared     MAE      aicc
+#  1.4759117 0.6275146 0.8646112
+#-----------------------------------------------------------------------------------------------------------------------
+# model 2: quadratic exponential (!the best model!)
+frmu   <- NEE ~ C_pool * exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC)     # in this formula: C_pool, alpha, beta, and Hs are unclear parameters. I know Cpool and Hs should be positive;
+stprm  <- c(C_pool=1, alpha=0.1, beta=-0.01, Hs = 20)
+df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)
+mod2 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+summary(mod2)
+NEE_pred <- predict(mod2, newdata=df_accurate)
+plot(df_accurate$TS, df_accurate$NEE)
+# check performance
+postResample(pred=NEE_pred, obs=df_accurate$NEE)
+performance_aicc(mod2)
+#    RMSE Rsquared      MAE     aicc
+# 1.4410967 0.6430417 0.8003121              # almost lineaer relationship with SWC
+# 
+# The best parameter values
+# C_pool  2.803e-01  8.119e-03   34.53   <2e-16 ***
+# alpha   2.216e-01  2.885e-03   76.81   <2e-16 ***
+# beta   -3.331e-03  7.878e-05  -42.28   <2e-16 ***
+# Hs      1.214e+01  6.594e-01   18.40   <2e-16 ***
+#
+#-----------------------------------------------------------------------------------------------------------------------
+# model 3: parabolic equations
+frmu   <- NEE ~ (C_pool + alpha * (TS - Topt)^2)  * SWC / (Hs + SWC)        # in this formula: C_pool, alpha, beta, and Hs are unclear parameters. I know Cpool and Hs should be positive
+stprm  <- c(C_pool = 5, alpha = 0.1, Topt = 0, Hs = 20)
+df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)
+# mod1 <-try(nlxb(formula=frmu, start=stprm, data=df_accurate, lower=c(0, 0, -1000), upper=c(1, 1000, 1000)))
+mod3 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+summary(mod3)
+NEE_pred <- predict(mod3, newdata=df_accurate)
+plot(df_accurate$TS, NEE_pred)
+# check performance
+postResample(pred=NEE_pred, obs=df_accurate$NEE)
+performance_aicc(mod3)
+#    RMSE    Rsquared   MAE         AICc
+# 1.4451896 0.6409142 0.8067702 
+
+#-----------------------------------------------------------------------------------------------------------------------
+# model 4: Arrhenius (the worst model)
+frmu   <- NEE ~ C_pool * exp(- alpha / 8.3144598 / (TS + 273.15)) * SWC / (Hs + SWC)    
+stprm  <- c(C_pool = 0.5, alpha = 20, Hs = 20)
+df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)
+# mod1 <-try(nlxb(formula=frmu, start=stprm, data=df_accurate, lower=c(0, 0, -1000), upper=c(1, 1000, 1000)))
+mod4 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+summary(mod4)
+NEE_pred <- predict(mod4, newdata=df_accurate)
+plot(df_accurate$TS, NEE_pred)
+# check performance
+postResample(pred=NEE_pred, obs=df_accurate$NEE)
+performance_aicc(mod4)
+#    RMSE    Rsquared      MAE      AICc
+# 1.9362024 0.5691679 1.4015856
+#-----------------------------------------------------------------------------------------------------------------------
+# model 5: Modified Arrhenius  (better than the last; almost the same)
+frmu   <- NEE ~ C_pool * exp(- alpha * (1/(15+46.02) - 1/(TS+46.02))) * SWC / (Hs + SWC)    
+stprm  <- c(C_pool = 0.5, alpha = 20, Hs = 20)
+df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)
+# mod1 <-try(nlxb(formula=frmu, start=stprm, data=df_accurate, lower=c(0, 0, -1000), upper=c(1, 1000, 1000)))
+mod5 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+summary(mod5)
+NEE_pred <- predict(mod5, newdata=df_accurate)
+plot(df_accurate$TS, NEE_pred)
+# check performance
+postResample(pred=NEE_pred, obs=df_accurate$NEE)
+performance_aicc(mod5)
+#    RMSE Rsquared      MAE   AICc
+# 1.4489977 0.6391955 0.8167987
+
+# mod2 is the best; 
+
+```
+
+
+```{r how about predicting for each year using the best model}
+library(gslnls)
+# using all the data to select the best model type; prepare for the data
+NEE_annual <- ac %>% filter(YEAR >= iStart & YEAR <= iEnd) %>% group_by(YEAR) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T)) 
+NEE_grow   <- ac %>% filter(DOY >= gStart & DOY <= gEnd) %>% filter(YEAR >= iStart & YEAR <= iEnd) %>% group_by(YEAR) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T)) 
+#
+#
+coef <- data.frame(year=double(), C_pool=double(), alpha=double(), beta=double())
+perf <- data.frame(year=double(), RMSE=double(), Rsquared=double(), MAE=double())
+#
+for (i in iStart:iEnd) {     
+  data <- a_measure_night_complete %>% filter(YEAR==i)   #
+  if (nrow(data) <= 10) {
+    next
+  }
+  print(i)
+  #-----------------------------------------------------------------------------------------------------------------------
+  # model 2: quadratic exponential (!the best model!)
+  Hs = 1.214e+01
+  frmu   <- NEE ~ C_pool * exp(exp(alpha) * TS + beta*TS^2) * SWC / (SWC+Hs)    
+  stprm  <- c(C_pool=20, alpha=-1, beta=-0.01)            # these initial values need to be adjusted!
+  df_accurate <- data.frame(NEE=data$NEE, TS=data$TS, SWC=data$SWC)      
+  # mod2 <-try(nlxb(formula=frmu, start=stprm, data=df_accurate, lower=c(0, 0, -1000), upper=c(1000, 1000, 1000)))
+  mod2 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+  summary(mod2)
+  NEE_pred <- predict(mod2, newdata=df_accurate)
+  plot(df_accurate$TS, df_accurate$NEE, main=i)
+  lines(df_accurate$TS, NEE_pred)
+  # check performance
+  performance_aicc(mod2)
+  coef[i-iStart+1,] <- c(i, coefficients(mod2)[1], exp(coefficients(mod2)[2]), coefficients(mod2)[3])
+  perf[i-iStart+1,] <- c(i, postResample(pred=NEE_pred, obs=df_accurate$NEE))  
+}
+
+# Remember to check performance before moving on!
+# 
+coef$Topt  <- - coef$alpha/2/coef$beta
+coef$Rpeak <- coef$C_pool * exp(-coef$alpha^2 / 4 / coef$beta)
+#
+# positive?
+cor.test(coef$Topt, NEE_grow$TA)    # NS
+cor.test(coef$Topt, NEE_grow$TS)    # NS
+# positive? no? negative?
+cor.test(coef$Rpeak, NEE_grow$TA)    # ns
+cor.test(coef$Rpeak, NEE_grow$TS)    # NS
+
+# not useful, represent ER at TS=0
+cor.test(coef$C_pool, NEE_grow$TS)    # NS
+cor.test(coef$C_pool, NEE_grow$TA)    # S
+#
+cor.test(coef$alpha, NEE_grow$TS)    # S
+cor.test(coef$alpha, NEE_grow$TA)    # NS
+# 
+cor.test(coef$beta, NEE_grow$TS)     # S
+cor.test(coef$beta, NEE_grow$TA)     # NS
+#
+# if correlated to SWC, NO!
+cor.test(coef$C_pool, NEE_grow$SWC)    # NS
+cor.test(coef$alpha, NEE_grow$SWC)     # NS
+cor.test(coef$beta, NEE_grow$SWC)      # NS
+#
+```
+
+```{r test if there is thermal acclimation}
+# strength of thermal acclimation
+# T-ER curves of different years
+result <- data.frame(TS=double(), NEE=double(), year=integer())
+TS    = seq(0, 26, 0.1)
+nTS   = length(TS)
+nyear = nrow(coef)
+for (i in 1:nyear) {
+  #
+  result[((i-1)*nTS+1):(i*nTS), 3] <- i + iStart - 1
+  result[((i-1)*nTS+1):(i*nTS), 1] <- TS
+  #
+#  if (i==10) {next}
+  if (is.na(perf$Rsquared[i])) {
+    next
+  }
+  if (perf$Rsquared[i] < 0.0) {             # I have to remove bad performance years.  
+    next
+  }
+  alpha  = coef$alpha[i]
+  beta   = coef$beta[i]
+  C_pool = coef$C_pool[i]
+  Hs = 1.214e+01
+  SWC = 37
+  result[((i-1)*nTS+1):(i*nTS), 2] <- C_pool * exp(alpha * TS + beta * TS * TS) * SWC / (SWC+Hs) 
+}
+
+#
+ggplot(result, aes(x=TS, y=NEE, col=as.factor(year))) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = tStart/10) +
+  geom_vline(xintercept = tEnd/10)
+
+# growing season 25-31 C; using a standard method, integration over the period. 
+# get the average NEE during the growing season.
+result_row <- spread(result, key=year, value=NEE)
+# only choose the data with temperature between 11 and 18 C
+Ravg_GW    <- colSums(result_row[tStart:tEnd, 2:(nyear+1)]) * 0.1
+Ravg_GW    <- Ravg_GW / mean(Ravg_GW, na.rm=T) 
+
+#
+# correlation between annual summer temperature and average night respiration at temperature between 2 and 12
+cor.test(Ravg_GW, NEE_grow$TS)    # p-value = 0.01476
+cor.test(Ravg_GW, NEE_grow$TA)    # p-value = 0.898
+#
+# no correlation
+df <- data.frame(TS=NEE_grow$TS, alpha = Ravg_GW, SWC=NEE_grow$SWC)
+ggplot(df, aes(x=TS, y=alpha)) + 
+  geom_point() +
+  geom_smooth(method = lm) +
+  stat_cor(color='green') + 
+  labs(x='Mean soil temperature (C)', y='normalized night respiration under growth temperature')
+# linear regression
+summary(lm(data=df, alpha~TS))    # slope = -0.04383; 
+
+df <- data.frame(TA=NEE_grow$TA, alpha = Ravg_GW, SWC=NEE_grow$SWC)
+ggplot(df, aes(x=TA, y=alpha)) + 
+  geom_point() +
+  geom_smooth(method = lm) +
+  stat_cor(color='green') + 
+  labs(x='Mean air temperature (C)', y='normalized night respiration under growth temperature')
+# linear regression
+summary(lm(data=df, alpha~TA))   
+
+
+# I need to rethink about this. 
+hist(ac$TS)
+#
+
+# how about the relation during growing season?
+tmp <- ac %>% filter(TS > 2)   # only use the data with TS > 2C
+TS_TA <- summary(lm(data=tmp, TS~TA))$coefficients[2,1]
+#
+
+# write important results into an output file
+outcome <- list(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=tStart, tEnd=tEnd, TS_TA=TS_TA,
+                NEE_grow=NEE_grow, NEE_annual=NEE_annual, result=result_row, coef=coef, perf=perf)
+saveRDS(outcome, file=paste0(data_dir, name_site, '_outcome.RDS'))
+
+```
