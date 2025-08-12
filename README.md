@@ -17,11 +17,17 @@
 -   01_01_estimate_soil_temperature_at_some_sites
 -   01_02_filter_high_quality_night_respiration_measurement
 -   01_03_estimate_gross_primary_productivity (GPP) for each day at each study sites
--   01_04_download_measured_SIF(solar-induced chlorophyll fluorescence)_LAI_data_from_NASA
+    -   hourly daytime NEE, hourly GPP
+    -   biweekly vegetation index: EVI and NDVI
+    -   daily SIF for some sites
+-   01_04_download_measured_SIF(solar-induced chlorophyll fluorescence)\_LAI_data_from_NASA
 -   01_05_develop_different_respiration_models
 -   01_06_get_annual_temperature_respiration_curves_for_acclimation_strength_estimate
 
 02_calculate_thermal_acclimation_for_all_sites
+
+-   02_01_get_annual_TS_ER_curves_for_each_site
+-   02_02_estimate_thermal_acclimation_strenght_for_each_site
 
 03_identify_drivers_thermal_acclimation_strength
 
