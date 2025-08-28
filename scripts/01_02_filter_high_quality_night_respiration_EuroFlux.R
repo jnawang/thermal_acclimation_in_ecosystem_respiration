@@ -1,18 +1,12 @@
 # Purpose of this script: prepare for data for fitting temperature-respiration curves for EuroFlux sites. 
 # Output of this script: two .RDS files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
+#  It will take ~ 30 mins to finish running this script. 
 
 # Special attention: 
 # site FR-Pue - soil water provided by PI
 # sites in southern hemisphere ('AU-Tum', 'ZA-Kru', "BR-Sa1") have growing seasons spanning two years. 
-
-# step by step notes: 
-# step 1: double check removed years. [some sites cannot be eliminated]
-# step 1: add statement of two special sites.
-# step 2: ensure the previously used sites all worked. 
-# step 3: clearly indicate data sources (routine of data sources)
-# step 4: ensure other sites also worked. 
-
+# we added 11 European sites in Aug. 2025
 
 library(librarian)
 shelf(dplyr, lubridate)
@@ -95,7 +89,6 @@ for (id in 1:nrow(site_info)) {
     df_TS <- readRDS(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')))
     df_TS <- left_join(data.frame(TIMESTAMP=a$TIMESTAMP), df_TS, by = "TIMESTAMP")
     a$TS_F_MDS_1 <- df_TS$TS_pred
-#    a$TS_F_MDS_1 <- 3.265 + 0.7629 * a$TA_F_MDS + -0.004632 * a$NETRAD
     a$TS_F_MDS_1_QC[is.na(a$TS_F_MDS_1_QC) | a$TS_F_MDS_1_QC == 3] <- 2
     rm(df_TS)
   } else if (name_site == "FI-Sod") {
@@ -148,7 +141,7 @@ for (id in 1:nrow(site_info)) {
   # }
   # plot(a$NEE_VUT_REF)   # I should use QC=0, measured data
   
-  # we decided to loose the SWC constrains
+  # we decided to relax the SWC constrains
   a_measure_night_complete <- a %>% filter(!is.na(TA_F_MDS)) %>% filter(TS_F_MDS_1_QC %in% c(0, 1, 2)) %>% filter(NEE_VUT_REF_QC == 0) %>% filter(NIGHT == 1) %>% filter(NEE_VUT_REF > -5 & NEE_VUT_REF < 30) 
   # %>% filter(SWC_F_MDS_1_QC %in% c(0, 1, 2))
   
@@ -212,6 +205,7 @@ for (id in 1:nrow(site_info)) {
   
   # max gap and total large gap threshold
   if (name_site %in% c('ZA-Kru', 'FI-Sod', 'GF-Guy')) {
+    # use larger gap threshold because lack of data at these Tropical and Tundra sites. 
     gap_max_thresh <- 60
     gap_total_thresh <- 0.7   
   } else {
@@ -251,15 +245,15 @@ for (id in 1:nrow(site_info)) {
     filter(gap_max < gap_max_thresh &  gap_total < gap_total_thresh) %>%
     distinct(growing_year) %>% pull()
   
-  # ensure every degree of TS have measurements
-  bad_TS_years <- a_measure_night_complete %>% filter(between(TS_F_MDS_1, tStart, tEnd)) %>% 
-    arrange(YEAR, TS_F_MDS_1) %>% group_by(YEAR) %>%
-    mutate(gap = TS_F_MDS_1 - lag(TS_F_MDS_1)) %>%
-    summarise(max_gap = max(gap, na.rm = TRUE)) %>%
-    filter(max_gap > max(0.2 * (tEnd - tStart), 1.0)) %>% distinct(YEAR) %>% pull()
-  if (length(bad_TS_years) >= 1) {
-    good_years <- setdiff(good_years, bad_TS_years)    
-  }
+  # # ensure every degree of TS have measurements
+  # bad_TS_years <- a_measure_night_complete %>% filter(between(TS_F_MDS_1, tStart, tEnd)) %>% 
+  #   arrange(YEAR, TS_F_MDS_1) %>% group_by(YEAR) %>%
+  #   mutate(gap = TS_F_MDS_1 - lag(TS_F_MDS_1)) %>%
+  #   summarise(max_gap = max(gap, na.rm = TRUE)) %>%
+  #   filter(max_gap > max(0.2 * (tEnd - tStart), 1.0)) %>% distinct(YEAR) %>% pull()
+  # if (length(bad_TS_years) >= 1) {
+  #   good_years <- setdiff(good_years, bad_TS_years)    
+  # }
   
   years2remove_automation <- setdiff(yStart:yEnd, good_years)
   
@@ -279,14 +273,6 @@ for (id in 1:nrow(site_info)) {
     good_years <- setdiff(good_years, years2remove)
   }
   
-  # Junna temperorary output. 
-  if (setequal(years2remove_automation, years2remove)) {
-    print('perfectly matched year2remove')
-  } else {
-    print('automation does not match year2remove')
-    print(years2remove_automation)
-    print(years2remove)
-  }
   
   # select good_years based on growing year
   a_measure_night_complete <- a_measure_night_complete  %>% 
@@ -326,4 +312,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # output growing season features
-# write.csv(feature_gs, file='data/growing_season_feature.csv', row.names = F)
+write.csv(feature_gs, file='data/growing_season_feature_EuropFlux.csv', row.names = F)
+
+# Sys.time()

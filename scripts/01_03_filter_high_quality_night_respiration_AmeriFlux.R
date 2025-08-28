@@ -1,22 +1,11 @@
 # Purpose of this script: prepare for data for fitting temperature-respiration curves for AmeriFlux sites. 
-# Output of this script: two .RDS files. One for selected night NEE, and the other for gap-filled whole time-series.
+# Output of this script: two .RDS files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
+#  It will take ~2 hours to finish running this script. 
 
-# step by step notes: 
-# step 1: double check removed years. [some sites cannot be eliminated]
-# step 1: add statement of two special sites.
-# step 2: ensure the previously used sites all worked. 
-# step 3: clearly indicate data sources (routine of data sources)
-# step 4: ensure other sites also worked. 
-
-# to do list
-# Sites we want to remove soil temperature: TS < 2C.
-# US-Uaf: first 5 year TS has problem. 
-# a few stations miss RH data
-# US-Los, I should only use one section of TS data?
-# US-Ha1: remove data when TS < 2C
-# 
-# check each comment
+# Special attention: 
+# SWC measurements of some old sites is every 4 hours, so these SWC data needs to interpolate. 
+# we added 6 more Ameriflux sites into the data in Aug. 2025
 
 library(librarian)
 shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo)
@@ -89,6 +78,12 @@ for (id in 1:nrow(site_info)) {
   # determine: day-time or night-time
   dt <- a$TIMESTAMP[2] - a$TIMESTAMP[1]
   a$daytime <- a$TIMESTAMP + dt/2.0 >= ac$sunrise & a$TIMESTAMP - dt/2.0 <= ac$sunset
+  
+  # special cases: sites in Arctic do not have sunrise and sunset sometime of a year
+  if (name_site %in% c('US-ICt', 'US-ICh', "US-ICs")) {
+    a$daytime[is.na(a$daytime) & between(a$MONTH, 4, 8)] <- TRUE
+    a$daytime[is.na(a$daytime) & !between(a$MONTH, 4, 8)] <- FALSE
+  }
   
   if (name_site == "US-CMW") {
     # only use data after 2000
@@ -339,10 +334,11 @@ for (id in 1:nrow(site_info)) {
   #########################################remove years with big gaps#######################################
   # max gap and total large gap threshold
   if (name_site %in% c("US-ICt", "US-ICh", "US-ICs")) {
+    # use larger gap threshold because lack of data at these Tundra sites. 
     gap_max_thresh <- 60
     gap_total_thresh <- 0.8
   } else {
-    gap_max_thresh <- max(31, (gEnd-gStart+1) * 0.2)
+    gap_max_thresh <- max(31, (gEnd-gStart+1) * 0.225)
     gap_total_thresh <- max(1/3, gap_max_thresh / (gEnd-gStart+1))
   }
 
@@ -395,18 +391,8 @@ for (id in 1:nrow(site_info)) {
     }
   }))
   
-
   if (length(years2remove) >= 1) {
     good_years <- setdiff(good_years, years2remove)
-  }
-
-  # Junna temperory output.
-  if (setequal(years2remove_automation, years2remove)) {
-    print('perfectly matched year2remove')
-  } else {
-    print('automation does not match year2remove')
-    print(years2remove_automation)
-    print(years2remove)
   }
 
   ############################prepare to output two datasets: a_measure_night_complete and ac#######################################
@@ -446,6 +432,6 @@ for (id in 1:nrow(site_info)) {
 
   feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=max(tStart, 0.0), tEnd=tEnd, nyear=length(good_years)))
 }
-# output growing season features
-# write.csv(feature_gs, file='data/growing_season_feature_AmeriFlux.csv', row.names = F)
 
+# output growing season features
+write.csv(feature_gs, file='data/growing_season_feature_AmeriFlux.csv', row.names = F)
