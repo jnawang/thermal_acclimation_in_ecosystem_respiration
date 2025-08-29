@@ -237,7 +237,7 @@ for (id in 1:nrow(site_info)) {
       # estimate model parameters
       mod1 <- brms::brm(brms::bf(frmu[[1]], alpha+C0 ~ 1, nl = TRUE),
                         prior = stprm[[1]], data = data_subset, iter = 2000, cores =2, chains = 4, backend = "cmdstanr", 
-                        control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)
+                        control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0, silent = 2)
       data_day <- data_subset %>% filter(DOY == days[iday])
 
       data_day$NEE_mod1 <- fitted(mod1, newdata=data_day)[, "Estimate"]
@@ -256,7 +256,7 @@ for (id in 1:nrow(site_info)) {
     # ######################Model 2: quadratic exponential without water or daytime NEE terms
     mod2 <- brms::brm(brms::bf(frmu[[2]], alpha+beta+C0 ~ 1, nl = TRUE),
               prior = stprm[[2]], data = data, iter = 2000, cores = 4, chains = 2, backend = "cmdstanr", 
-              control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)
+              control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0, silent = 2)
     # summary(mod2)
     data$NEE_mod2 <- fitted(mod2, newdata=data)[, "Estimate"]
     
@@ -266,7 +266,7 @@ for (id in 1:nrow(site_info)) {
     if (site_info$SWC_use[id] == 'YES') {
       mod3 <- brms::brm(brms::bf(frmu[[3]], alpha+beta+C0+Hs ~ 1, nl = TRUE),
                         prior = stprm[[3]], data = data, iter = 2000, cores = 4, chains = 2, backend = "cmdstanr", 
-                        control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)
+                        control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0, silent = 2)
       # summary(mod3)
       data$NEE_mod3 <- fitted(mod3, newdata=data)[, "Estimate"]
       ER_model_performance[isite_year, 7:8] <- postResample(pred=data$NEE_mod3[idx], obs=data$NEE[idx])[1:2]
@@ -274,7 +274,7 @@ for (id in 1:nrow(site_info)) {
     ######################Model 4: Quadratic exponential with daytime NEE term only   
     mod4 <- brms::brm(brms::bf(frmu[[4]], alpha+beta+C0+k2 ~ 1, nl = TRUE),
                       prior = stprm[[4]], data = data, iter = 2000, cores = 4, chains = 2, backend = "cmdstanr", 
-                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)
+                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0, silent = 2)
     # print(summary(mod4))
     data$NEE_mod4 <- fitted(mod4, newdata=data)[, "Estimate"]
     ER_model_performance[isite_year, 9:10] <- postResample(pred=data$NEE_mod4[idx], obs=data$NEE[idx])[1:2]
@@ -284,7 +284,7 @@ for (id in 1:nrow(site_info)) {
       for (ifrmu in 5:length(frmu)) {
         mod5 <- brms::brm(brms::bf(frmu[[ifrmu]], alpha+beta+C0+Hs+k2+gamma ~ 1, nl = TRUE),
                           prior = stprm[[ifrmu]], data = data, iter = 2000, cores = 4, chains = 2, backend = "cmdstanr", 
-                          control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)
+                          control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0, silent = 2)
           
         data$NEE_mod5 <- fitted(mod5, newdata=data)[, "Estimate"]
         ER_model_performance[isite_year, 2 + (ifrmu*2-1):(ifrmu*2) ] <- postResample(pred=data$NEE_mod5[idx], obs=data$NEE[idx])[1:2]
