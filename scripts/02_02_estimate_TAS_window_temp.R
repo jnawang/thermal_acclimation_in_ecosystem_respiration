@@ -31,7 +31,7 @@ outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), con
                       nwindow = integer(), TAS = double(), TASp = double())
 outcome_siteyear <- data.frame()
 
-for (id in 1:nrow(site_info)) {
+for (id in 99:nrow(site_info)) {
   id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
@@ -108,6 +108,7 @@ for (id in 1:nrow(site_info)) {
   window_size <- gEnd - gStart + 1
   
   
+  
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
   # #2 method to calculate window size
@@ -116,23 +117,24 @@ for (id in 1:nrow(site_info)) {
   #------------------------------------PREPARE FOR formula, stprm, priors of ER models---------------------------------
   if (site_info$SWC_use[id] == 'YES') {
     # for brm models
-    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC) * C0
-    frmu1 <- alpha+beta+C0+Hs ~ 1
-    priors <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
-      brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
-      brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0) +
-      brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
-    # for nls models
-    # alpha, CO, k2, and Hs are all positive and beta are negative
-    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln))
-    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, Hs_ln = 2.3)
-  } else {
     frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
-    frmu1 <- alpha+beta+C0+k2 ~ 1
+    frmu1 <- alpha+beta+C0 ~ 1
     priors <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
       brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
       brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
-    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * exp(C0_ln)
+    # for nls models
+    # alpha, CO, k2, and Hs are all positive and beta are negative
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2)
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9)
+  } else {
+    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
+    frmu1 <- alpha+beta+C0 ~ 1
+    priors <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
+      brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
+      brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
+    # for nls models
+    # alpha, CO, k2, and Hs are all positive and beta are negative
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2)
     stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9)
   }
   
@@ -159,9 +161,6 @@ for (id in 1:nrow(site_info)) {
       priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2), ", 1.0)")
       priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", -min(exp(coefficients(mod_nls)["beta_ln"]), 0.01), ", 0.1)")
       priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", min(exp(coefficients(mod_nls)["C0_ln"]), 10), ", 5)")
-      if (site_info$SWC_use[id] == 'YES') {
-        priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
-      }
     }
 
     # call the brm model to estimate parameters; this step takes much longer time.
@@ -174,10 +173,7 @@ for (id in 1:nrow(site_info)) {
     priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod)["alpha_Intercept", "Estimate"], ", 1.0)")
     priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod)["beta_Intercept", "Estimate"], ", 0.1)")
     priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod)["C0_Intercept", "Estimate"], ", 5)")
-    if (site_info$SWC_use[id] == 'YES') {
-      priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", brms::fixef(mod)["Hs_Intercept", "Estimate"], ", 10)")
-    }
-    
+
     # get reference temperature, SWC, and NEEday of each window
     TSref <- mean(ac$TS[between(ac$DOY, window_start, window_end)], na.rm=T)
     NEEdayref <- mean(ac_day$NEE_daytime[between(ac_day$DOY, window_start, window_end)], na.rm=T)
@@ -222,8 +218,8 @@ for (id in 1:nrow(site_info)) {
       data_subset <- data_subset[between(data_subset$DOY, window_start, window_end), ]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset)
       
-      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      # lines(data_subset$TS, fitted(mod)[, "Estimate"])
+      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      lines(data_subset$TS, fitted(mod)[, "Estimate"])
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -253,7 +249,7 @@ for (id in 1:nrow(site_info)) {
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS_noGPP.png'))
+  ggsave(paste0('graphs/', name_site, '_TAS.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site
