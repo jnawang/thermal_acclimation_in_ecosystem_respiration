@@ -31,8 +31,8 @@ outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), con
                       nwindow = integer(), TAS = double(), TASp = double())
 outcome_siteyear <- data.frame()
 
-for (id in 99:nrow(site_info)) {
-  id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
+for (id in 1:nrow(site_info)) {
+  # id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
@@ -104,8 +104,8 @@ for (id in 99:nrow(site_info)) {
   window_size <- max(14, round(nobs_threshold / nobs1day))
   
   
-  # Junna Temporarily, only one window
-  window_size <- gEnd - gStart + 1
+  # # Junna Temporarily, only one window
+  # window_size <- gEnd - gStart + 1
   
   
   
@@ -219,7 +219,7 @@ for (id in 99:nrow(site_info)) {
       ER_obs_pred <- rbind(ER_obs_pred, data_subset)
       
       print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      lines(data_subset$TS, fitted(mod)[, "Estimate"])
+      lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -243,7 +243,7 @@ for (id in 99:nrow(site_info)) {
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
   
-  tmp <- df_site_year_window %>% group_by(growing_year) %>% summarise(TS = mean(TS), lnRatio = sum(lnRatio*ERref)/sum(ERref)) # %>% left_join(ac_yearly_gs, by="growing_year")
+  tmp <- df_site_year_window %>% group_by(growing_year) %>% summarise(TSwindow = mean(TS), lnRatio = sum(lnRatio*ERref)/sum(ERref))  %>% left_join(ac_yearly_gs, by="growing_year")
   
   plot <- df_site_year_window %>% ggplot(aes(x=TS, y=lnRatio, col=window)) +
     geom_point() +
@@ -259,8 +259,8 @@ for (id in 99:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome88_.csv')
-write.csv(outcome_siteyear, 'data/outcome_siteyear88_.csv')
+write.csv(outcome, 'data/outcome_window_temp.csv')
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp.csv')
 
 
 # check data quality

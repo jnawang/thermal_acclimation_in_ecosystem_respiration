@@ -32,7 +32,7 @@ outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), con
 outcome_siteyear <- data.frame()
 
 for (id in 1:nrow(site_info)) {
-  id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
+  # id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
@@ -219,11 +219,10 @@ for (id in 1:nrow(site_info)) {
 
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
-      data_subset <- data_subset[between(data_subset$DOY, window_start, window_end), ]
-      ER_obs_pred <- rbind(ER_obs_pred, data_subset)
+      ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
       print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      lines(data_subset$TS, fitted(mod)[, "Estimate"])
+      lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -263,8 +262,8 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome88_.csv')
-write.csv(outcome_siteyear, 'data/outcome_siteyear88_.csv')
+write.csv(outcome, 'data/outcome_window_temp_water.csv')
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water.csv')
 
 
 # check data quality
