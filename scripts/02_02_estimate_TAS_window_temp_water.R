@@ -12,8 +12,18 @@
 # how to save time? should we use overlapped windows or non-overlapping windows.
 # We need to differentiate sites with water and sites without water; they use different equations. 
 
+
+# what I have learned: 1) I cannot remove outliers, the results are sensitive to outliers. 
+# unique sites I need to pay attention to:
+# 1) 'US-ICt', 'US-ICh', 'US-ICs', 'FI-Hyy'
+# 2) 'AU-Tum', 'ZA-Kru'
+# 4) 'CA-LP1': some windows should be removed; CA-Mer: one abnormal points; CA-TP3: has the clearest TA; 
+# 5) CZ-RAJ: one high point; DE-Gri: many bad points; DE-Hte: abnormal points; DE-RuW, lowTS should be removed; 
+# 6) ES-LJu: abnormal points; FR-Bil: two abnormal points; FR-FBn: abnormal points; FR-Pue, GF-Guy; IT-Lav; IT-Ren;
+# 7) IT-SRo; IT-TrF; US-BZB; US-Ho1; US-Jo2, US-MBP, US-MtB, US-Myb, US-RIs, US-Uaf, US-Whs, US-Wrc,  
+
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, lme4)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
@@ -31,11 +41,23 @@ outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), con
                       nwindow = integer(), TAS = double(), TASp = double())
 outcome_siteyear <- data.frame()
 
+# priors of ER models:
+priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
+  brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
+  brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
+
+priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
+
+
 for (id in 1:nrow(site_info)) {
-  # id = 3  # 1, 6, 77, 89, 64, 1:nrow(site_info)
+  # id = 3  # 3, 23:25, 27, 36, 57, 64, 67, 77, 81, 89, 105,  1:nrow(site_info) c(81, 63, 93, 98)
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
+  
+  # if (!name_site %in% c("DE-Gri", "DE-Hte", "DE-RuW", "ES-LJu", "FR-Bil", "FR-FBn", "FR-Pue", "GF-Guy", "IT-Lav", "IT-Ren", "IT-SRo", "IT-TrF", "US-BZB", "US-Ho1", "US-Jo2", "US-MBP", "US-MtB", "US-Myb", "US-RIs", "US-Uaf", "US-Whs", "US-Wrc")) {
+  #   next
+  # }
   
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
@@ -51,9 +73,9 @@ for (id in 1:nrow(site_info)) {
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
   if (ac$MINUTE[2] - ac$MINUTE[1] != 30) { dt = 60 }   # minutes 
-  # unit is g C / m2 / day
+  # unit is umol / m2 / s
   ac_day <- ac %>% filter(daytime) %>% group_by(YEAR, DOY) %>% 
-    summarise(NEE_daytime1 = max(-sum(NEE_uStar_f, na.rm=T) * dt * 60 * 12 / 1000000, 0.0), .groups = "drop")
+    summarise(NEE_daytime1 = max(-sum(NEE_uStar_f, na.rm=T) * dt * 60 / 86400, 0.0), .groups = "drop")
   # get rolling average of the prior three days
   ac_day$NEE_daytime <- rollapply(ac_day$NEE_daytime1, width = 3, FUN = mean,
                                    align = "right", fill = ac_day$NEE_daytime1[1])
@@ -76,9 +98,8 @@ for (id in 1:nrow(site_info)) {
                                     TRUE ~ YEAR - 1))
   
   # remove the growing_year with incomplete data
-  
   # sites in southern hemisphere lose one year, because growing season crosses two years
-  if (name_site %in% c('AU-Tum', 'ZA-Kru', "BR-Sa1")) {
+  if (name_site %in% c('AU-Tum', 'ZA-Kru')) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(between(growing_year, ac$YEAR[1], ac$YEAR[nrow(ac)] - 1))
     ac <- ac %>% filter(between(growing_year, ac$YEAR[1], ac$YEAR[nrow(ac)] - 1))
   }
@@ -88,53 +109,57 @@ for (id in 1:nrow(site_info)) {
   # get start and end dates of growing season
   gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
   gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
+  tStart <- feature_gs$tStart[feature_gs$site_ID == name_site]
+  tEnd <- feature_gs$tEnd[feature_gs$site_ID == name_site]
   
   # decide control year: the year with growing-season TS closest to long-term mean. 
   ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
   control_year <- ac_yearly_gs$growing_year[which.min(abs(ac_yearly_gs$TS - mean(ac_yearly_gs$TS)))]
 
-  # determine moving window size and number of windows
+  # minimum number of observations within each window.
   if (dt == 30) {
     nobs_threshold <- 100
   } else {
     nobs_threshold <- 60
   }
   
-  nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
-  window_size <- max(14, round(nobs_threshold / nobs1day))
+  # the first method to calculate window size   
+  # nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
+  # window_size <- max(14, round(nobs_threshold / nobs1day))
   
   
-  # Junna Temporarily, only one window
-  window_size <- gEnd - gStart + 1
-  
+  # the second method to calculate window size
+  # sites in tundra area have shorter growing season and periods without nighttime, so we only use one window
+  if (name_site %in% c('US-ICt', 'US-ICh', 'US-ICs')) {
+    window_size <- gEnd - gStart + 1
+  } else {
+    window_size <- 14
+  }
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
   # #2 method to calculate window size
   # nwindow <- round((gEnd - gStart + 1 - window_size) / 14) + 1
 
-  #------------------------------------PREPARE FOR formula, stprm, priors of ER models---------------------------------
+  #------------------------------------PREPARE FOR formula, parameter, stprm, priors of ER models---------------------------------
   if (site_info$SWC_use[id] == 'YES') {
     # for brm models
     frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC) * C0
-    frmu1 <- alpha+beta+C0+Hs ~ 1
-    priors <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
-      brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
-      brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0) +
-      brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
+    param <- alpha+beta+C0+Hs ~ 1
+    priors <- priors_temp + priors_water
     # for nls models
     # alpha, CO, k2, and Hs are all positive and beta are negative
     frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln))
     stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, Hs_ln = 2.3)
   } else {
     frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
-    frmu1 <- alpha+beta+C0+k2 ~ 1
-    priors <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
-      brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
-      brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
+    param <- alpha+beta+C0 ~ 1
+    priors <- priors_temp
     frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * exp(C0_ln)
     stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9)
   }
+  param_year <- alpha+beta+C0 ~ 1
+  priors_year <- priors_temp
   
   df_site_year_window <- data.frame(site_ID = character(), growing_year = integer(), window = character(), nobsv = integer(), extend_days = integer(),  
                                     alpha = double(), beta = double(), C0 = double(), Hs = double(), k2 = double(), TS = double(), ERref = double(), lnRatio = double())
@@ -145,15 +170,15 @@ for (id in 1:nrow(site_info)) {
   for (iwindow in 1:nwindow) {
     window_start = gStart + window_size*(iwindow-1)
     window_end = min(gStart + window_size*iwindow, gEnd)
+
+    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
+    if (!between(mean(ac_yearly_window$TS, na.rm=T), max(tStart, 2.0), tEnd) & nwindow > 1) {
+      next
+    }
     
-    # #2 method to calculate window size
-    # window_start = gStart + 14*(iwindow-1)
-    # window_end = min(gStart + window_size + 14*(iwindow-1), gEnd)
-    
-    data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end)) 
+    data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end))
     
     # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
-    # this can give abnormal initial values. 
     mod_nls <- try(gsl_nls(fn=as.formula(frmu_nls), data=data, start=stprm))
     if (!inherits(mod_nls, "try-error")) {
       priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2), ", 1.0)")
@@ -165,18 +190,22 @@ for (id in 1:nrow(site_info)) {
     }
 
     # call the brm model to estimate parameters; this step takes much longer time.
-    mod <- brms::brm(brms::bf(frmu, frmu1, nl = TRUE),
+    mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                      prior = priors, data = data, iter = 1000, cores =4, chains = 4, backend = "cmdstanr",
                      control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
-    # print(summary(mod), digits = 3)
-
-    # use this result as prior of each year
-    priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod)["alpha_Intercept", "Estimate"], ", 1.0)")
-    priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod)["beta_Intercept", "Estimate"], ", 0.1)")
-    priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod)["C0_Intercept", "Estimate"], ", 5)")
+    # print(summary(mod0), digits = 3)
+    
+    # update frmu_year and priors_year
     if (site_info$SWC_use[id] == 'YES') {
-      priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", brms::fixef(mod)["Hs_Intercept", "Estimate"], ", 10)")
+      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * C0 * SWC / (SWC + ", brms::fixef(mod0)["Hs_Intercept", "Estimate"], ")")
+    } else {
+      frmu_year <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
     }
+    # use this result as prior of each year
+    priors_year$prior[priors_year$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
+    priors_year$prior[priors_year$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
+    priors_year$prior[priors_year$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod0)["C0_Intercept", "Estimate"], ", 5)")
+    
     
     # get reference temperature, SWC, and NEEday of each window
     TSref <- mean(ac$TS[between(ac$DOY, window_start, window_end)], na.rm=T)
@@ -188,8 +217,7 @@ for (id in 1:nrow(site_info)) {
       data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref)
     }
     
-    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
-    
+    #----loop through each year----
     for (iyear in years) {
       print(paste(name_site, iwindow, iyear, sep='_'))
       icount = icount + 1
@@ -200,21 +228,24 @@ for (id in 1:nrow(site_info)) {
       # determine if there are enough data for the regression of each year
       data_subset <- data[data$growing_year == iyear, ]
       # two rules are needed:
-      # rule 1: total number of points > 50
-      # rule 2: data are relatively even dispersed: spacings <- diff(sort(data_subset$TS[between(data_subset$TS, TSref-1, TSref+1)]))
+      # rule 1: total number of points > 100. 
+      # rule 2: TSref is within the 0.025 and 0.975 quantiles. 
       # if the two rules are violated, extend window size. 
       extend_days <- 0
-      while(nrow(data_subset) < nobs_threshold) {
+      while(nrow(data_subset) < nobs_threshold | !between(TSref, quantile(data_subset$TS, 0.025, na.rm=T), quantile(data_subset$TS, 0.975, na.rm=T))) {
         extend_days <- extend_days + 3
         data_subset <- a_measure_night_complete %>% filter(growing_year == iyear) %>% 
           filter(between(DOY, window_start - extend_days, window_end + extend_days))
+        # some conditions to break out to avoid dead loop
+        if (nrow(data_subset) >= nobs_threshold & (window_end + extend_days) >= gEnd & TSref >= max(data_subset$TS, na.rm=T)) {break}
         if (extend_days > (gEnd - gStart) / 2.0) {break}   # max window size for some years = 91; 3 month
       }
+      
       df_site_year_window[icount, 4] <- nrow(data_subset)
       df_site_year_window[icount, 5] <- extend_days
         
-      mod <- brms::brm(brms::bf(frmu, frmu1, nl = TRUE),
-                       prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
+      mod <- brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+                       prior = priors_year, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
 
       # extract model results
@@ -226,6 +257,10 @@ for (id in 1:nrow(site_info)) {
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
+      # put other parameters
+      if (site_info$SWC_use[id] == 'YES') {
+        df_site_year_window[icount, 'Hs'] <- brms::fixef(mod0)["Hs_Intercept", "Estimate"]
+      }
       
       # average TS of moving window at each year
       df_site_year_window$TS[icount] <- ac_yearly_window$TS[ac_yearly_window$growing_year == iyear]
@@ -241,7 +276,14 @@ for (id in 1:nrow(site_info)) {
     
     df_site_year_window$lnRatio[(icount-length(years) + 1):icount] <- log(df_site_year_window$ERref[(icount-length(years) + 1):icount] / ERref_control)
     
-    # the last windows should have some overlapping. 
+    # remove extreme values due to potentially large gaps
+    x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
+    id.remove <- match(boxplot.stats(x, coef = 3)$out, x)
+    if (length(id.remove) > 0) {
+      df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
+      icount <- icount - length(id.remove)
+    }
+    
   }
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
@@ -258,7 +300,12 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-  outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
+  # outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
+  if (nwindow > 1) {
+    outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
+  } else {
+    outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
+  }
 }
 
 # end of each site
@@ -266,18 +313,18 @@ write.csv(outcome, 'data/outcome_window_temp_water.csv')
 write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water.csv')
 
 
-# check data quality
-a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>%
-  ggplot(aes(x=TS, y=NEE)) +
-  geom_point()
-
-# data quality is good. 
-a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>% 
-  mutate(datetime = as.POSIXct(
-    sprintf("%04d-%02d-%02d %02d:%02d:00", YEAR, MONTH, DAY, HOUR, MINUTE),
-    format = "%Y-%m-%d %H:%M:%S",
-    tz = "UTC")) %>%
-  ggplot(aes(x=datetime, y=NEE)) +
-  geom_point()
+# # check data quality
+# a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>%
+#   ggplot(aes(x=TS, y=NEE)) +
+#   geom_point()
+# 
+# # data quality is good. 
+# a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>% 
+#   mutate(datetime = as.POSIXct(
+#     sprintf("%04d-%02d-%02d %02d:%02d:00", YEAR, MONTH, DAY, HOUR, MINUTE),
+#     format = "%Y-%m-%d %H:%M:%S",
+#     tz = "UTC")) %>%
+#   ggplot(aes(x=datetime, y=NEE)) +
+#   geom_point()
 
 

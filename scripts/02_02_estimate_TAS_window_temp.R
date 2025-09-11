@@ -88,6 +88,8 @@ for (id in 1:nrow(site_info)) {
   # get start and end dates of growing season
   gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
   gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
+  tStart <- feature_gs$tStart[feature_gs$site_ID == name_site]
+  tEnd <- feature_gs$tEnd[feature_gs$site_ID == name_site]
   
   # decide control year: the year with growing-season TS closest to long-term mean. 
   ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
@@ -99,10 +101,18 @@ for (id in 1:nrow(site_info)) {
   } else {
     nobs_threshold <- 60
   }
+
+  # the first method to calculate window size  
+  # nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
+  # window_size <- max(14, round(nobs_threshold / nobs1day))
   
-  nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
-  window_size <- max(14, round(nobs_threshold / nobs1day))
-  
+  # the second method to calculate window size
+  # sites in tundra area have shorter growing season and periods without nighttime, so we only use one window
+  if (name_site %in% c('US-ICt', 'US-ICh', 'US-ICs')) {
+    window_size <- gEnd - gStart + 1
+  } else {
+    window_size <- 14
+  }
   
   # # Junna Temporarily, only one window
   # window_size <- gEnd - gStart + 1
@@ -152,6 +162,12 @@ for (id in 1:nrow(site_info)) {
     # window_start = gStart + 14*(iwindow-1)
     # window_end = min(gStart + window_size + 14*(iwindow-1), gEnd)
     
+    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
+    if (!between(mean(ac_yearly_window$TS, na.rm=T), tStart, tEnd) & nwindow > 1) {
+    # if ((min(ac_yearly_window$TS, na.rm = T) < tStart | max(ac_yearly_window$TS, na.rm = T) > tEnd) & nwindow > 1) {
+      next
+    }
+    
     data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end)) 
     
     # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
@@ -184,7 +200,6 @@ for (id in 1:nrow(site_info)) {
       data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref)
     }
     
-    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
     
     for (iyear in years) {
       print(paste(name_site, iwindow, iyear, sep='_'))
@@ -194,7 +209,8 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window$window[icount] <- paste(window_start, window_end, sep='_')
       
       # determine if there are enough data for the regression of each year
-      data_subset <- data[data$growing_year == iyear, ]
+      data_subset <- a_measure_night_complete %>% filter(growing_year == iyear) %>% 
+        filter(between(DOY, window_start, window_end))
       # two rules are needed:
       # rule 1: total number of points > 50
       # rule 2: data are relatively even dispersed: spacings <- diff(sort(data_subset$TS[between(data_subset$TS, TSref-1, TSref+1)]))
@@ -218,8 +234,8 @@ for (id in 1:nrow(site_info)) {
       data_subset <- data_subset[between(data_subset$DOY, window_start, window_end), ]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset)
       
-      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      lines(data_subset$TS, data_subset$NEE_pred)
+      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      # lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]

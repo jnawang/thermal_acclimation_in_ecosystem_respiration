@@ -5,7 +5,7 @@
 
 # Special attention: 
 # site FR-Pue - soil water provided by PI
-# sites in southern hemisphere ('AU-Tum', 'ZA-Kru', "BR-Sa1") have growing seasons spanning two years. 
+# sites in southern hemisphere ('AU-Tum', 'ZA-Kru') have growing seasons spanning two years. 
 # we added 11 European sites in Aug. 2025
 
 library(librarian)
@@ -27,7 +27,7 @@ site_info <- read.csv('data/site_info.csv')
 
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
-# put a for loop here 1:nrow(site_info)
+# put a for loop here 
 for (id in 1:nrow(site_info)) {
   # id = 95
   print(id)

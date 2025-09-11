@@ -68,7 +68,7 @@ DK-Sor,FLUXNET2025_ICOS2025,,NO,1999,,,,,,,,,,1999 no SWC data,,,YES
 FI-Hyy,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,YES
 FI-Sod,FLUXNET2015,,NO,"2002, 2003",,,,,,,,,,"2002, 2003 missed lots of data; 2002 abnormal temperature; we used loose gap constrain for this site because too many data are missed. ",,270,YES
 FR-Pue,FLUXNET2025,,YES,"2001:2003, 2005, 2013",,,,,,,,,,"2001-2003 lack of SWC, 2005 insect effect, 2013 low model accuracy likely sensor problem; 2014 may have data problem, but not sure; likely have enhancing effects. ",,,YES
-IT-Lav,FLUXNET2025,,NO,,,,,,,,,,,,21,,YES
+IT-Lav,FLUXNET2025,,NO,,,,,,,,,,,,121,300,YES
 IT-MBo,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,YES
 IT-Noe,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,NO
 IT-Ren,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,NO
@@ -96,10 +96,10 @@ DE-Akm,FLUXNET2025,,YES,,,,,,,,,,,,,,NO
 DE-Hte,FLUXNET2025,,YES,,,,,,,,,,,,,,NO
 DE-Hzd,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,NO
 DE-RuC,FLUXNET2025,,NO,,,,,,,,,,,,,,YES
-DE-RuW,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,YES
+DE-RuW,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,91,330,YES
 DE-SfS,FLUXNET2025,,NO,,,,,,,,,,,,,,NO
 FR-Bil,FLUXNET2025_ICOS2025,,YES,,,,,,,,,,,,,,NO
-IT-TrF,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,YES
+IT-TrF,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,121,300,YES
 SE-Nor,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,,,,YES
 SE-Svb,FLUXNET2025_ICOS2025,9,NO,,,,,,,,,,,,,,NO
 UK-AMo,FLUXNET2025_ICOS2025,,NO,,,,,,,,,,,"if use SWC, remove 2013",,,NO
