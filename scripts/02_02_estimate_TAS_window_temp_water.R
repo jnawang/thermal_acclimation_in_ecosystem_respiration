@@ -27,8 +27,8 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, lme4)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -252,8 +252,8 @@ for (id in 1:nrow(site_info)) {
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
-      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      lines(data_subset$TS, data_subset$NEE_pred)
+      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      # lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -294,7 +294,7 @@ for (id in 1:nrow(site_info)) {
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS_noGPP.png'))
+  ggsave(paste0('graphs/', name_site, '_TAS_temp_water.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site

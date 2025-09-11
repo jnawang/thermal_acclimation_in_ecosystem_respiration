@@ -268,8 +268,6 @@ for (id in 1:nrow(site_info)) {
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
   
-  tmp <- df_site_year_window %>% group_by(growing_year) %>% summarise(TS = mean(TS), lnRatio = sum(lnRatio*ERref)/sum(ERref)) # %>% left_join(ac_yearly_gs, by="growing_year")
-  
   plot <- df_site_year_window %>% ggplot(aes(x=TS, y=lnRatio, col=window)) +
     geom_point() +
     geom_smooth(method = 'lm') +
@@ -280,7 +278,6 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-  # outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
   if (nwindow > 1) {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
   } else {
