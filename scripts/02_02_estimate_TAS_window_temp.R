@@ -17,8 +17,8 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -36,7 +36,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
 for (id in 1:nrow(site_info)) {
-  # id = 3
+  # id = 25
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
@@ -105,12 +105,8 @@ for (id in 1:nrow(site_info)) {
     nobs_threshold <- 60
   }
 
-  # sites in tundra area have shorter growing season and periods without nighttime, so we only use one window
-  if (name_site %in% c('US-ICt', 'US-ICh', 'US-ICs')) {
-    window_size <- gEnd - gStart + 1
-  } else {
-    window_size <- 14
-  }
+  # use uniform window size: 2 weeks
+  window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
@@ -141,6 +137,8 @@ for (id in 1:nrow(site_info)) {
     }
     
     data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end))
+    # skip a window if no enough data; this is for sites ('US-ICt', 'US-ICh', 'US-ICs', 'FI-Sod') with a period of the whole day is daytime. 
+    if (nrow(data) < 100) { next }
     
     # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
     # this can give abnormal initial values. 
@@ -153,8 +151,8 @@ for (id in 1:nrow(site_info)) {
 
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                      prior = priors, data = data, iter = 1000, cores =4, chains = 4, backend = "cmdstanr",
-                      control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
+                      prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
     
     # use this result as prior of each year
@@ -185,7 +183,7 @@ for (id in 1:nrow(site_info)) {
       # two rules are needed:
       # rule 1: total number of points > 100. 
       # rule 2: TSref is within the 0.025 and 0.975 quantiles. 
-      # if the two rules are violated, extend window size. 
+      # if the two rules are violated, extend window size.  # , 
       extend_days <- 0
       while(nrow(data_subset) < nobs_threshold | !between(TSref, quantile(data_subset$TS, 0.025, na.rm=T), quantile(data_subset$TS, 0.975, na.rm=T))) {
         extend_days <- extend_days + 3
@@ -208,8 +206,8 @@ for (id in 1:nrow(site_info)) {
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
-      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      # lines(data_subset$TS, data_subset$NEE_pred)
+      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -230,7 +228,8 @@ for (id in 1:nrow(site_info)) {
     
     # remove extreme values due to potentially large gaps
     x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
-    id.remove <- match(boxplot.stats(x, coef = 3)$out, x)
+    outlier <- boxplot.stats(x, coef = 3)$out
+    id.remove <- match(outlier[abs(outlier) > 1.5], x)
     if (length(id.remove) > 0) {
       df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
       icount <- icount - length(id.remove)

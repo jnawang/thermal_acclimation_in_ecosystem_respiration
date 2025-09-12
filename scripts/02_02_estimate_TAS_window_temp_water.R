@@ -127,14 +127,8 @@ for (id in 1:nrow(site_info)) {
   # nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
   # window_size <- max(14, round(nobs_threshold / nobs1day))
   
-  
-  # the second method to calculate window size
-  # sites in tundra area have shorter growing season and periods without nighttime, so we only use one window
-  if (name_site %in% c('US-ICt', 'US-ICh', 'US-ICs')) {
-    window_size <- gEnd - gStart + 1
-  } else {
-    window_size <- 14
-  }
+  # use uniform window size: 2 weeks
+  window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
@@ -177,6 +171,8 @@ for (id in 1:nrow(site_info)) {
     }
     
     data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end))
+    # skip a window if no enough data; this is for sites ('US-ICt', 'US-ICh', 'US-ICs', 'FI-Sod') with a period of the whole day is daytime. 
+    if (nrow(data) < 100) { next }
     
     # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
     mod_nls <- try(gsl_nls(fn=as.formula(frmu_nls), data=data, start=stprm))
@@ -191,8 +187,8 @@ for (id in 1:nrow(site_info)) {
 
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                     prior = priors, data = data, iter = 1000, cores =4, chains = 4, backend = "cmdstanr",
-                     control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
+                     prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                     control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
     
     # update frmu_year and priors_year
@@ -278,7 +274,8 @@ for (id in 1:nrow(site_info)) {
     
     # remove extreme values due to potentially large gaps
     x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
-    id.remove <- match(boxplot.stats(x, coef = 3)$out, x)
+    outlier <- boxplot.stats(x, coef = 3)$out
+    id.remove <- match(outlier[abs(outlier) > 1.5], x)
     if (length(id.remove) > 0) {
       df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
       icount <- icount - length(id.remove)
