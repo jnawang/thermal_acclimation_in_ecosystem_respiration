@@ -266,6 +266,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp.csv')
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp.csv')
+write.csv(outcome, 'data/outcome_window_temp3week.csv')
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp3week.csv')
 
