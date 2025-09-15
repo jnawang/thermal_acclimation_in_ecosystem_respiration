@@ -128,7 +128,7 @@ for (id in 1:nrow(site_info)) {
   # window_size <- max(14, round(nobs_threshold / nobs1day))
   
   # use uniform window size: 2 weeks
-  window_size <- 14
+  window_size <- 21
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
