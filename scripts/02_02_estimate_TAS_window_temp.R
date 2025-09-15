@@ -201,7 +201,13 @@ for (id in 1:nrow(site_info)) {
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
 
-      # extract model results
+      # if brm models fail, try another time
+      if (inherits(mod, "try-error")) {
+        mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+                             prior = priors_year, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)) # , silent = 2
+      }
+      
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])

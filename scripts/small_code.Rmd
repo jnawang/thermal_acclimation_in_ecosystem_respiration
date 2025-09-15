@@ -1,0 +1,49 @@
+---
+title: "small_code"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r compare model performance of different ER structure}
+dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
+site_info <- read.csv(file.path(dir, 'data/site_info.csv'))
+
+outcome_window_temp <- read.csv(file.path(dir, 'data/outcome_window_temp.csv'))
+outcome_window_temp_water <- read.csv(file.path(dir, 'data/outcome_window_temp_water.csv'))
+outcome_window_temp_water_gpp <- read.csv(file.path(dir, 'data/outcome_window_temp_water_gpp.csv'))
+
+outcome_window_temp <- outcome_window_temp %>% left_join(site_info[, c("site_ID", "SWC_use")], by = "site_ID")
+outcome_window_temp_water <- outcome_window_temp_water %>% left_join(site_info[, c("site_ID", "SWC_use")], by = "site_ID")
+outcome_window_temp_water_gpp <- outcome_window_temp_water_gpp %>% left_join(site_info[, c("site_ID", "SWC_use")], by = "site_ID")
+
+outcome_window_temp_sub <- subset(outcome_window_temp, SWC_use == 'YES')
+outcome_window_temp_water_sub <- subset(outcome_window_temp_water, SWC_use == 'YES')
+outcome_window_temp_water_gpp_sub <- subset(outcome_window_temp_water_gpp, SWC_use == 'YES')
+
+plot(outcome_window_temp_sub$TAS, outcome_window_temp_water_sub$TAS)
+abline(a = 0, b = 1, col = "green")
+
+
+sum(outcome_window_temp$TASp < 0.05 & outcome_window_temp$TAS <= 0)  # 42
+sum(outcome_window_temp$TASp < 0.05 & outcome_window_temp$TAS >= 0)  # 10
+
+sum(outcome_window_temp_water$TASp < 0.05 & outcome_window_temp_water$TAS <= 0)   # 34
+sum(outcome_window_temp_water$TASp < 0.05 & outcome_window_temp_water$TAS >= 0)   # 12
+
+sum(outcome_window_temp_water_gpp$TASp < 0.05 & outcome_window_temp_water_gpp$TAS <= 0)   # 23
+sum(outcome_window_temp_water_gpp$TASp < 0.05 & outcome_window_temp_water_gpp$TAS >= 0)   # 17
+
+
+mean(outcome_window_temp$TAS[outcome_window_temp$TASp < 0.05 & outcome_window_temp$TAS <= 0])
+# -0.05503075
+
+mean(outcome_window_temp_water$TAS[outcome_window_temp$TASp < 0.05 & outcome_window_temp_water$TAS <= 0])
+# -0.04243633
+
+```
+

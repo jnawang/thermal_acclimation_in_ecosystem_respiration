@@ -41,7 +41,7 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
 
-for (id in 1:nrow(site_info)) {
+for (id in 93:nrow(site_info)) {
   # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
@@ -222,10 +222,17 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window[icount, 4] <- nrow(data_subset)
       df_site_year_window[icount, 5] <- extend_days
       
-      mod <- brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+      mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
                        prior = priors_year, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
-                       control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
+                       control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
       
+      # if brm models fail, try another time
+      if (inherits(mod, "try-error")) {
+        mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+                             prior = priors_year, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)) # , silent = 2
+      }
+
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
