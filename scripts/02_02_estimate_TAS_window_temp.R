@@ -106,7 +106,7 @@ for (id in 1:nrow(site_info)) {
   }
 
   # use uniform window size: 2 weeks
-  window_size <- 21
+  window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
@@ -258,7 +258,7 @@ for (id in 1:nrow(site_info)) {
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
   # outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
-  if (nwindow > 1) {
+  if (length(unique(df_site_year_window$window)) > 1) {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
   } else {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
@@ -266,6 +266,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp3week.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp3week.csv', row.names = F)
+write.csv(outcome, 'data/outcome_window_temp.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp.csv', row.names = F)
 

@@ -128,7 +128,7 @@ for (id in 1:nrow(site_info)) {
   # window_size <- max(14, round(nobs_threshold / nobs1day))
   
   # use uniform window size: 2 weeks
-  window_size <- 21
+  window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
@@ -305,7 +305,7 @@ for (id in 1:nrow(site_info)) {
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
   # outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
-  if (nwindow > 1) {
+  if (length(unique(df_site_year_window$window)) > 1) {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
   } else {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
@@ -313,22 +313,8 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp_water3week.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water3week.csv', row.names = F)
+write.csv(outcome, 'data/outcome_window_temp_water.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water.csv', row.names = F)
 
-
-# # check data quality
-# a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>%
-#   ggplot(aes(x=TS, y=NEE)) +
-#   geom_point()
-# 
-# # data quality is good. 
-# a_measure_night_complete %>% filter(growing_year == 2016) %>% filter(!is.na(SWC)) %>% 
-#   mutate(datetime = as.POSIXct(
-#     sprintf("%04d-%02d-%02d %02d:%02d:00", YEAR, MONTH, DAY, HOUR, MINUTE),
-#     format = "%Y-%m-%d %H:%M:%S",
-#     tz = "UTC")) %>%
-#   ggplot(aes(x=datetime, y=NEE)) +
-#   geom_point()
 
 
