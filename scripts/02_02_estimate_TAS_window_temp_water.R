@@ -313,8 +313,8 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp_water3week.csv')
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water3week.csv')
+write.csv(outcome, 'data/outcome_window_temp_water3week.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water3week.csv', row.names = F)
 
 
 # # check data quality

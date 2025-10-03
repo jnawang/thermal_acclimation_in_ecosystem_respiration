@@ -21,6 +21,12 @@ rm(list=ls())
 dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
+# read daily total precipitation
+tp_daily <- read.csv(file.path(dir_rawdata, "daily_tp_data.csv"))
+tp_daily$Date <- as.Date(tp_daily$Date, format = "%m/%d/%y")
+tp_daily$YEAR <- year(tp_daily$Date)
+tp_daily$DOY <- yday(tp_daily$Date)
+
 site_info <- read.csv('data/site_info.csv')
 feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
@@ -36,8 +42,9 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
-priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
-
+priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000) + 
+  brms::prior("normal(0.5, 1)", nlpar = "a", lb = 0, ub = 1)
+  
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
 
@@ -58,6 +65,13 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
   
+  
+  
+  site_info$SWC_use[id] = 'NO'
+  
+  
+  
+  
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
   if (ac$MINUTE[2] - ac$MINUTE[1] != 30) { dt = 60 }   # minutes 
@@ -68,12 +82,23 @@ for (id in 1:nrow(site_info)) {
   ac_day$NEE_daytime <- rollapply(ac_day$NEE_daytime1, width = 3, FUN = mean,
                                   align = "right", fill = ac_day$NEE_daytime1[1])
   
+  # calculate 30day rolling over
+  tp_daily_site <- tp_daily[, c("Date", "YEAR", "DOY", gsub('-', '.', name_site))]
+  tp_daily_site$P30 <- rollapply(tp_daily_site[,4], width = 30, FUN = mean,
+                                 align = "right", fill = tp_daily_site[1,2])
+  
   # attach it to nighttime data
   if (!"NEE_daytime1" %in% names(a_measure_night_complete)) {
     a_measure_night_complete <- a_measure_night_complete %>% mutate(DOY_gpp = case_when(HOUR >= 12 ~ DOY,
                                                                                         HOUR < 12 & DOY == min(ac$DOY) ~ DOY, 
                                                                                         HOUR < 12 & DOY != min(ac$DOY) ~ DOY - 1)) %>%
       left_join(ac_day, by = c("YEAR", "DOY_gpp"="DOY")) %>% select(-"DOY_gpp") %>% filter(!is.na(NEE_daytime1))
+  }
+  
+  # attach precipitation to nighttime data
+  if (! "P30" %in% names(a_measure_night_complete)) {
+    a_measure_night_complete <- a_measure_night_complete %>% left_join(tp_daily_site[, c("YEAR", "DOY", "P30")], by = c("YEAR", "DOY"))
+    
   }
   
   # Deal with sites in southern hemisphere
@@ -128,17 +153,17 @@ for (id in 1:nrow(site_info)) {
     frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
     stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6, Hs_ln = 2.3)
   } else {
-    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * k2)
-    param <- alpha+beta+C0+k2 ~ 1
-    priors <- priors_temp + priors_gpp
-    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
-    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6)
+    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * k2) * (a * Hs + P30 * (1-a)) / (Hs + P30 * (1-a))
+    param <- alpha+beta+C0+k2+Hs+a ~ 1
+    priors <- priors_temp + priors_gpp + priors_water
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * (exp(C0_ln) + NEE_daytime * exp(k2_ln)) * (exp(a_ln) * exp(Hs_ln) + P30 * (1-exp(a_ln))) / (exp(Hs_ln) + P30 * (1-exp(a_ln)))
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6, a_ln = -0.693, Hs_ln = 2.3)
   }
   param_year <- alpha+beta+C0 ~ 1
   priors_year <- priors_temp
   
   df_site_year_window <- data.frame(site_ID = character(), growing_year = integer(), window = character(), nobsv = integer(), extend_days = integer(),  
-                                    alpha = double(), beta = double(), C0 = double(), Hs = double(), k2 = double(), TS = double(), ERref = double(), lnRatio = double())
+                                    alpha = double(), beta = double(), C0 = double(), k2 = double(), Hs = double(), a = double(), TS = double(), ERref = double(), lnRatio = double())
   ER_obs_pred <- data.frame()
 
 #------------------------------------FIT ER MODELS FOR EACH YEAR AND WINDOWS WITH BRM METHOD---------------------------------
@@ -166,6 +191,9 @@ for (id in 1:nrow(site_info)) {
       priors$prior[priors$nlpar == 'k2'] <- paste0("normal(", min(exp(coefficients(mod_nls)["k2_ln"]), 10), ", 2)")
       if (site_info$SWC_use[id] == 'YES') {
         priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
+      } else {
+        priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
+        priors$prior[priors$nlpar == 'a'] <- paste0("normal(", min(exp(coefficients(mod_nls)["a_ln"]), 1), ", 1)")
       }
     }
 
@@ -179,8 +207,8 @@ for (id in 1:nrow(site_info)) {
     if (site_info$SWC_use[id] == 'YES') {
       frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * ", brms::fixef(mod0)["k2_Intercept", "Estimate"], ") * SWC / (SWC + ", brms::fixef(mod0)["Hs_Intercept", "Estimate"], ")")
     } else {
-      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * ", brms::fixef(mod0)["k2_Intercept", "Estimate"], ")")
-    }
+      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * ", brms::fixef(mod0)["k2_Intercept", "Estimate"], ") * (", brms::fixef(mod0)["a_Intercept", "Estimate"], "*", brms::fixef(mod0)["Hs_Intercept", "Estimate"], " + P30 * (1-", brms::fixef(mod0)["a_Intercept", "Estimate"], ")) / (", brms::fixef(mod0)["Hs_Intercept", "Estimate"], " + P30 * (1-", brms::fixef(mod0)["a_Intercept", "Estimate"], "))")
+    }                                                                                                      # * (a * Hs + P30 * (1-a)) / (Hs + P30 * (1-a))   #
     # use this result as prior of each year
     priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
     priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
@@ -193,7 +221,8 @@ for (id in 1:nrow(site_info)) {
       SWCref <- mean(ac$SWC[between(ac$DOY, window_start, window_end)], na.rm=T)
       data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref, SWC=SWCref)
     } else {
-      data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref)
+      P30ref <- mean(tp_daily_site$P30[between(tp_daily_site$DOY, window_start, window_end)], na.rm=T)
+      data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref, P30=P30ref)
     }
     
     #----loop through each year----
@@ -246,6 +275,9 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window[icount, 'k2'] <- brms::fixef(mod0)["k2_Intercept", "Estimate"]
       if (site_info$SWC_use[id] == 'YES') {
         df_site_year_window[icount, 'Hs'] <- brms::fixef(mod0)["Hs_Intercept", "Estimate"]
+      } else {
+        df_site_year_window[icount, 'Hs'] <- brms::fixef(mod0)["Hs_Intercept", "Estimate"]
+        df_site_year_window[icount, 'a'] <- brms::fixef(mod0)["a_Intercept", "Estimate"]
       }
       
       # average TS of moving window at each year
@@ -293,7 +325,7 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, 'data/outcome.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear.csv', row.names = F)
+write.csv(outcome, 'data/outcome_tp.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_tp.csv', row.names = F)
 
 

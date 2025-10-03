@@ -26,6 +26,11 @@ feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 
+swc_ERA5 <- read.csv(file.path(dir_rawdata, "ERA5_daily_swc_1990_2024_allsites.csv"))
+swc_ERA5$date <- as.Date(swc_ERA5$date)   # , format = "%m/%d/%y"
+swc_ERA5$YEAR <- year(swc_ERA5$date)
+swc_ERA5$DOY <- yday(swc_ERA5$date)
+
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
                       nwindow = integer(), TAS = double(), TASp = double())
@@ -40,7 +45,7 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
-
+  
 for (id in 1:nrow(site_info)) {
   # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
@@ -57,6 +62,22 @@ for (id in 1:nrow(site_info)) {
   if (site_info$SWC_use[id] == 'YES') {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
+  
+  
+  ###########################################
+  a_measure_night_complete$SWC <- NULL
+  ac$SWC <- NULL
+  
+  # use SWC data from ERA5 land climate reanalysis
+  swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
+  # attach to a_measure_night_complete and ac
+  a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'DOY', 'SWC')], by = c('YEAR', 'DOY'))
+  ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'DOY', 'SWC')], by = c('YEAR', 'DOY'))
+  site_info$SWC_use[id] = 'YES'
+  ###########################################
+  
+  
+  
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
