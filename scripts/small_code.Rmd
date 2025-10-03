@@ -9,7 +9,188 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+```{r compare different moving window size}
+library(librarian)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, ggpmisc, tidyr)
+rm(list=ls())
+
+dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
+site_info <- read.csv(file.path(dir, 'data/site_info.csv'))
+acclimation_old <- read.csv(file.path(dir, 'data/acclimation_data_new.csv'))
+acclimation_field <- read.csv(file.path(dir, 'data/r3_field.csv'))
+
+outcome_window_temp <- read.csv(file.path(dir, 'data/outcome_window_temp.csv'))
+outcome_window_temp_water <- read.csv(file.path(dir, 'data/outcome_window_temp_water.csv'))
+outcome_window_temp_water_gpp <- read.csv(file.path(dir, 'data/outcome_window_temp_water_gpp.csv'))
+outcome_window_temp_gpp <- read.csv(file.path(dir, 'data/outcome_temp_gpp.csv'))
+
+#
+tmp <- read.csv(file.path(dir, 'data/outcome_window_temp_water_gpp3week.csv'))
+outcome_window_temp_water_gpp$TAS_3week <- tmp$TAS
+outcome_window_temp_water_gpp$TASp_3week <- tmp$TASp
+
+#
+tmp <- read.csv(file.path(dir, 'data/outcome_window_temp3week.csv'))
+outcome_window_temp$TAS_3week <- tmp$TAS
+outcome_window_temp$TASp_3week <- tmp$TASp
+#
+tmp <- read.csv(file.path(dir, 'data/outcome_window_temp4week.csv'))
+outcome_window_temp$TAS_4week <- tmp$TAS
+outcome_window_temp$TASp_4week <- tmp$TASp
+
+#
+tmp <- read.csv(file.path(dir, 'data/outcome_window_temp_water3week.csv'))
+outcome_window_temp_water$TAS_3week <- tmp$TAS
+outcome_window_temp_water$TASp_3week <- tmp$TASp
+#
+tmp <- read.csv(file.path(dir, 'data/outcome_window_temp_water4week.csv'))
+outcome_window_temp_water$TAS_4week <- tmp$TAS
+outcome_window_temp_water$TASp_4week <- tmp$TASp
+
+################################
+# do not control anything
+ggplot(data = outcome_window_temp, aes(x=TAS, y=TAS_3week)) +
+  geom_point() +
+  # geom_abline(slope = 1, intercept = 0, col = "red") +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+ggplot(data = outcome_window_temp, aes(x=TAS, y=TAS_4week)) +
+  geom_point() +
+  # geom_abline(slope = 1, intercept = 0, col = "red") +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+
+# control water
+ggplot(data = outcome_window_temp_water, aes(x=TAS, y=TAS_3week)) +
+  geom_point() +
+  # geom_abline(slope = 1, intercept = 0, col = "red") +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+ggplot(data = outcome_window_temp_water, aes(x=TAS, y=TAS_4week)) +
+  geom_point() +
+  # geom_abline(slope = 1, intercept = 0, col = "red") +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+
+# control water, and control GPP
+ggplot(data = outcome_window_temp_water_gpp, aes(x=TAS, y=TAS_3week)) +
+  geom_point() +
+  # geom_abline(slope = 1, intercept = 0, col = "red") +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+
+# comparison of different models
+TAS_estimate <- data.frame(site_ID = outcome_window_temp_water_gpp$site_ID, TAS_temp = outcome_window_temp$TAS, 
+                           TAS_temp_water = outcome_window_temp_water$TAS, TAS_temp_water_gpp = outcome_window_temp_water_gpp$TAS,
+                           TAS_temp_gpp = outcome_window_temp_gpp$TAS)
+TAS_estimate <- left_join(TAS_estimate, site_info[, c('site_ID', 'SWC_use')], by='site_ID') %>% left_join(acclimation_old[, c('site_ID', 'TRS', 'IGBP', 'Climate_class')], by='site_ID')
+
+
+# comparison among four models
+TAS_estimate %>% # filter(SWC_use == 'YES') %>%
+  select(c(site_ID, IGBP, Climate_class, TAS_temp, TAS_temp_water, TAS_temp_water_gpp, TAS_temp_gpp)) %>%
+  pivot_longer(cols=c("TAS_temp", "TAS_temp_water", "TAS_temp_water_gpp", "TAS_temp_gpp"), names_to = "ER_models", values_to = "TAS") %>%
+  ggplot(aes(x=ER_models, y=TAS)) +
+  geom_boxplot()
+
+# plot by climate group
+TAS_estimate %>% # filter(SWC_use == 'YES') %>% 
+  select(c(site_ID, IGBP, Climate_class, TAS_temp, TAS_temp_water, TAS_temp_water_gpp, TAS_temp_gpp)) %>%
+  pivot_longer(cols=c("TAS_temp", "TAS_temp_water", "TAS_temp_water_gpp", "TAS_temp_gpp"), names_to = "ER_models", values_to = "TAS") %>%
+  ggplot(aes(x=Climate_class, y=TAS, col=ER_models)) +
+  geom_boxplot()
+
+# plot by vegetation group
+TAS_estimate %>% # filter(SWC_use == 'YES') %>% 
+  select(c(site_ID, IGBP, Climate_class, TAS_temp, TAS_temp_water, TAS_temp_water_gpp, TAS_temp_gpp)) %>%
+  pivot_longer(cols=c("TAS_temp", "TAS_temp_water", "TAS_temp_water_gpp", "TAS_temp_gpp"), names_to = "ER_models", values_to = "TAS") %>%
+  ggplot(aes(x=IGBP, y=TAS, col=ER_models)) +
+  geom_boxplot()
+
+
+# compare with the old calculation
+ggplot(data=TAS_estimate, aes(x=TAS_temp_water, y=TRS)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., ..p.value.label.., sep = "~~~")),
+    formula = y ~ x,        # linear regression
+    parse = TRUE,           # pretty math formatting
+    label.x = "right",      # position of text
+    label.y = "top"
+  )
+
+
+# compare with field observations
+t.test(outcome_window_temp$TAS[outcome_window_temp$TASp < 0.05 & outcome_window_temp$TAS < 0.0], 
+       acclimation_field$r3[acclimation_field$result == 'YES' & acclimation_field$respiration == 'leaf'])
+
+# they are similar to leaf thermal acclimation strength (TAS), but different for soil TAS. 
+
+
+##############################################address another question##############################################
+# when GPP is important
+boxplot(TAS_estimate$TAS_temp_water_gpp - TAS_estimate$TAS_temp_water)
+#
+TAS_estimate$site_ID[which(abs(TAS_estimate$TAS_temp_water_gpp - TAS_estimate$TAS_temp_water) > 0.015)]
+#
+TAS_estimate$IGBP[which(abs(TAS_estimate$TAS_temp_water_gpp - TAS_estimate$TAS_temp_water) > 0.015)]
+#
+TAS_estimate$Climate_class[which(abs(TAS_estimate$TAS_temp_water_gpp - TAS_estimate$TAS_temp_water) > 0.015)]
+
+# obtain average value of k2, contribution of GPP
+outcome_siteyear_window_temp_water_gpp <- read.csv(file.path(dir, 'data/outcome_siteyear_window_temp_water_gpp.csv'))
+
+outcome_siteyear_window_temp_water_gpp %>% group_by(site_ID) %>% summarise(k2mean = mean(k2)) %>% filter(k2mean > 0.1) %>% arrange(k2mean)
+
+# some sites: ER is highly correlated to 
+range(outcome_siteyear_window_temp_water_gpp$k2)
+# US-Wkg, US-Jo2, US-SRG, FR-Pue, IT-TrF
+
+```
+
+
 ```{r compare model performance of different ER structure}
+library(librarian)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
+rm(list=ls())
+
+
 dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
 site_info <- read.csv(file.path(dir, 'data/site_info.csv'))
 
@@ -45,5 +226,75 @@ mean(outcome_window_temp$TAS[outcome_window_temp$TASp < 0.05 & outcome_window_te
 mean(outcome_window_temp_water$TAS[outcome_window_temp$TASp < 0.05 & outcome_window_temp_water$TAS <= 0])
 # -0.04243633
 
+mean(outcome_window_temp_water_gpp$TAS[outcome_window_temp_water_gpp$TASp < 0.05 & outcome_window_temp_water_gpp$TAS <= 0])
+# -0.04142069
+
+
+mean(outcome_window_temp_sub$R2)            # 0.2994225
+mean(outcome_window_temp_water_sub$R2)      # 0.3029756
+mean(outcome_window_temp_water_gpp_sub$R2)  # 0.3031107
+
+mean(outcome_window_temp$RMSE)            # 2.521636
+mean(outcome_window_temp_water_gpp$RMSE)  # 2.520879
+
+mean(outcome_window_temp$R2)              # 0.3019141
+mean(outcome_window_temp_water_gpp$R2)    # 0.3029333
+# at this two weekly time scale, model performance are very similar. 
+
+boxplot(outcome_window_temp$TAS)
+# 
+t.test(outcome_window_temp$TAS, mu=0.0)
+t.test(outcome_window_temp_water$TAS, mu=0.0)
+t.test(outcome_window_temp_water_gpp$TAS, mu=0.0)  # this is not statistically different from zero. 
+
+boxplot(outcome_window_temp_water_sub$TAS - outcome_window_temp_water_gpp_sub$TAS)
+#
+TASgpp <- outcome_window_temp_water_sub$site_ID[abs(outcome_window_temp_water_sub$TAS - outcome_window_temp_water_gpp_sub$TAS) > 0.01]
+TASgpp <- outcome_window_temp_water_sub$TAS - outcome_window_temp_water_gpp_sub$TAS
+
+TASwater <- outcome_window_temp_sub$TAS - outcome_window_temp_water_gpp_sub$TAS - TASgpp
+
+# the strongest effect is through water, then is GPP and the last is inherent response. 
+t.test(outcome_window_temp_water_gpp_sub$TAS, mu=0)
+
+
 ```
+
+
+```{r generate a csv file}
+library(librarian)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, ggpmisc, tidyr)
+rm(list=ls())
+
+dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
+site_info <- read.csv(file.path(dir, 'data/site_info.csv'))
+
+site_info_sub <- site_info %>% filter(SWC_use == 'NO')
+site_info_sub <- data.frame(name = site_info_sub$site_ID, lon = site_info_sub$LONG, lat = site_info_sub$LAT)
+
+write.csv(site_info_sub, '/Users/junnawang/Downloads/sites_need_swc.csv', row.names = F)
+  
+# Get the years when SWC data are needed. 
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+for (i in 1:nrow(site_info_sub)) {
+  path <- file.path(dir_rawdata, "RespirationData", paste0(site_info_sub$name[i], '_nightNEE.RDS'))
+  if (file.exists(path)) {
+    a_measure_night_complete <- readRDS(path)
+    ac <- readRDS(file.path(dir_rawdata, "RespirationData", paste0(site_info_sub$name[i], '_ac.RDS')))
+  }
+  print(paste(site_info_sub$name[i], min(a_measure_night_complete$YEAR), max(a_measure_night_complete$YEAR), sep = '-'))
+}
+
+# 
+swc1 <- read.csv("/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_allsites.csv")
+# swc1 <- subset(swc1, !is.na(soil_moisture))   
+# swc1 <- rbind(swc1, swc2)  
+swc1$SWC <- swc1$SWC * 100
+write.csv(swc1, '/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_allsites.csv', row.names = F)
+
+
+
+```
+
+
 
