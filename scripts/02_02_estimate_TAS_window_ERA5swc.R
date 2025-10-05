@@ -17,8 +17,8 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -314,7 +314,7 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, 'data/outcome.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear.csv', row.names = F)
+write.csv(outcome, 'data/outcome_swcERA5.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_swcERA5.csv', row.names = F)
 
 
