@@ -17,8 +17,8 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -29,7 +29,8 @@ feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 swc_ERA5 <- read.csv(file.path(dir_rawdata, "ERA5_daily_swc_1990_2024_allsites.csv"))
 swc_ERA5$date <- as.Date(swc_ERA5$date)   # , format = "%m/%d/%y"
 swc_ERA5$YEAR <- year(swc_ERA5$date)
-swc_ERA5$DOY <- yday(swc_ERA5$date)
+swc_ERA5$MONTH <- month(swc_ERA5$date)
+swc_ERA5$DAY <- day(swc_ERA5$date)
 
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
@@ -71,8 +72,8 @@ for (id in 1:nrow(site_info)) {
   # use SWC data from ERA5 land climate reanalysis
   swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
   # attach to a_measure_night_complete and ac
-  a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'DOY', 'SWC')], by = c('YEAR', 'DOY'))
-  ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'DOY', 'SWC')], by = c('YEAR', 'DOY'))
+  a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+  ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
   site_info$SWC_use[id] = 'YES'
   ###########################################
   
