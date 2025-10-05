@@ -292,9 +292,93 @@ swc1 <- read.csv("/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_
 swc1$SWC <- swc1$SWC * 100
 write.csv(swc1, '/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_allsites.csv', row.names = F)
 
+```
+
+
+```{r look at seasonal variation of TAS}
+#
+dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
+outcome_siteyear <- read.csv(file.path(dir, 'data/outcome_siteyear_window_temp_water_gpp.csv'))
+site_info <- read.csv(file.path(dir, 'data/acclimation_data_new.csv'))
+
+
+sites <- unique(outcome_siteyear$site_ID)
+TAS <- data.frame()
+for (site in sites) {
+  outcome_site <- subset(outcome_siteyear, site_ID == site)
+  df <- outcome_site %>% group_by(site_ID, window) %>%     
+    summarise(
+      TS_window = mean(TS),
+      slope = {
+        model <- lm(lnRatio ~ TS, data = cur_data())  # only current group
+        coef(model)[2]
+      }, .groups = "drop"
+    )
+  TAS <- rbind(TAS, df)
+}
+
+
+parts <- strsplit(TAS$window, '_')
+TAS$DOY <- as.numeric(sapply(parts, `[`, 1))
+
+# get IGBP and climate class
+if (!'IGBP' %in% names(TAS)) {
+  TAS <- TAS %>% left_join(site_info[,c('site_ID', 'IGBP', 'Climate_class')], by = 'site_ID')
+}
+
+climate_classes <- unique(site_info$Climate_class)
+igbps <- unique(site_info$IGBP)
+
+for (climate_class in climate_classes) {
+  p1 <- TAS %>% filter(Climate_class == climate_class) %>%
+  ggplot(aes(x = TS_window, y = slope, col = site_ID)) +
+    geom_point() +
+    geom_smooth(method = 'loess') +
+    labs(title = climate_class) +
+    theme_bw() + 
+    theme(legend.position = "none")
+  print(p1)
+}
+
+
+for (igbp in igbps) {
+  p1 <- TAS %>% filter(IGBP == igbp) %>%
+  ggplot(aes(x = TS_window, y = slope)) +  # , col = site_ID
+    geom_point() +
+    geom_smooth(method = "loess", se = FALSE) +  # method = "lm", formula = y ~ poly(x, 2), 
+    labs(title = igbp) +
+    lims(y = c(-0.2, 0.2)) +
+    theme_bw() + 
+    theme(legend.position = "none")
+  print(p1)
+}
+
+
+for (igbp in igbps) {
+  p1 <- TAS %>% filter(IGBP == igbp) %>%
+  ggplot(aes(x = DOY, y = slope )) +       #, col = site_ID
+    geom_point() +
+    geom_smooth(method = "loess", se = FALSE) +  # method = "lm", formula = y ~ poly(x, 2)
+    labs(title = igbp) +
+    lims(y = c(-0.2, 0.2)) +
+    theme_bw() + 
+    theme(legend.position = "none")
+  print(p1)
+}
+
+
+for (climate_class in climate_classes) {
+  p1 <- TAS %>% filter(Climate_class == climate_class) %>%
+  ggplot(aes(x = DOY, y = slope)) + # , col = site_ID
+    geom_point() +
+    geom_smooth(method = "loess", se = FALSE) +     # method = "lm", formula = y ~ poly(x, 2)
+    labs(title = climate_class) +
+    theme_bw() + 
+    theme(legend.position = "none")
+  print(p1)
+}
 
 
 ```
-
 
 
