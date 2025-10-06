@@ -66,19 +66,18 @@ for (id in 57:nrow(site_info)) {
   
   
   ###########################################
-  a_measure_night_complete$SWC <- NULL
-  ac$SWC <- NULL
-  
-  # use SWC data from ERA5 land climate reanalysis
-  swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
-  # attach to a_measure_night_complete and ac
-  a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
-  ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
-  site_info$SWC_use[id] = 'YES'
+  if (site_info$SWC_use[id] == 'NO') {
+    a_measure_night_complete$SWC <- NULL
+    ac$SWC <- NULL
+    # use SWC data from ERA5 land climate reanalysis
+    swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
+    # attach to a_measure_night_complete and ac
+    a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    site_info$SWC_use[id] = 'YES'
+  }
   ###########################################
-  
-  
-  
+
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
