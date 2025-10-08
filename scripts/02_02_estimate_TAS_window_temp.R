@@ -201,11 +201,23 @@ for (id in 1:nrow(site_info)) {
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
 
-      # if brm models fail, try another time
-      if (inherits(mod, "try-error")) {
+      if (!inherits(mod, "try-error")) {
+        # cmdfit <- mod$fit
+        # diag <- cmdfit$sampler_diagnostics()
+        # n_divergent <- sum(diag[, , "divergent__",])
+        np <- nuts_params(mod)
+        n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
+        failed_brm <- n_divergent > 0 
+      } else {
+        failed_brm <- TRUE
+      }
+      
+      
+      # if brm models fail or have divergent transitions, try another time
+      if (failed_brm) {
         mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
-                             prior = priors_year, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
-                             control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)) # , silent = 2
+                             prior = priors_year, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
       }
       
       # extract model results
