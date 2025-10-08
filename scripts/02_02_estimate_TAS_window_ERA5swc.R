@@ -7,10 +7,7 @@
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
 
-# first try: I will use US-IB2 and US-Kon as an example
-# to be determined, do I want to use nls to get initial values of brms
-# how to save time? should we use overlapped windows or non-overlapping windows.
-# We need to differentiate sites with water and sites without water; they use different equations. 
+# It takes 2 days to finish the estimate of TAS 
 
 library(librarian)
 shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
@@ -47,7 +44,7 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
   
-for (id in 57:nrow(site_info)) {
+for (id in 1:nrow(site_info)) {
   # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
@@ -64,8 +61,8 @@ for (id in 57:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
   
-  
-  ###########################################
+  # if no measured SWC data use daily SWC from ERA5 land
+  ####################################################
   if (site_info$SWC_use[id] == 'NO') {
     a_measure_night_complete$SWC <- NULL
     ac$SWC <- NULL
