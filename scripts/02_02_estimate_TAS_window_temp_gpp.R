@@ -6,14 +6,8 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
-
-# first try: I will use US-IB2 and US-Kon as an example
-# to be determined, do I want to use nls to get initial values of brms
-# how to save time? should we use overlapped windows or non-overlapping windows.
-# We need to differentiate sites with water and sites without water; they use different equations. 
-
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
@@ -57,6 +51,10 @@ for (id in 1:nrow(site_info)) {
   if (site_info$SWC_use[id] == 'YES') {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
+  
+  ####################not consider water, so set SWC_use = "NO" for all sites###############
+  site_info$SWC_use[id] = 'NO'
+  ##########################################################################################
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -226,13 +224,24 @@ for (id in 1:nrow(site_info)) {
                        prior = priors_year, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
       
-      # if brm models fail, try another time
-      if (inherits(mod, "try-error")) {
-        mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
-                             prior = priors_year, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
-                             control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)) # , silent = 2
+      if (!inherits(mod, "try-error")) {
+        # cmdfit <- mod$fit
+        # diag <- cmdfit$sampler_diagnostics()
+        # n_divergent <- sum(diag[, , "divergent__",])
+        np <- nuts_params(mod)
+        n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
+        failed_brm <- n_divergent > 0 
+      } else {
+        failed_brm <- TRUE
       }
-
+      
+      # if brm models fail or have divergent transitions, try another time
+      if (failed_brm) {
+        mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+                             prior = priors_year, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
+      }
+      
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
@@ -279,7 +288,7 @@ for (id in 1:nrow(site_info)) {
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS.png'))
+  ggsave(paste0('graphs/', name_site, '_TAS_temp_gpp.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site
@@ -293,7 +302,7 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, 'data/outcome.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear.csv', row.names = F)
+write.csv(outcome, 'data/outcome_temp_gpp.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_gpp.csv', row.names = F)
 
 

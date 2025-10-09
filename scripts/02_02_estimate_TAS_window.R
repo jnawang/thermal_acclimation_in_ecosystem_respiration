@@ -314,7 +314,7 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-  if (nwindow > 1) {
+  if (length(unique(df_site_year_window$window)) > 1) {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
   } else {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]

@@ -6,24 +6,8 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
-
-# first try: I will use US-IB2 and US-Kon as an example
-# to be determined, do I want to use nls to get initial values of brms
-# how to save time? should we use overlapped windows or non-overlapping windows.
-# We need to differentiate sites with water and sites without water; they use different equations. 
-
-
-# what I have learned: 1) I cannot remove outliers, the results are sensitive to outliers. 
-# unique sites I need to pay attention to:
-# 1) 'US-ICt', 'US-ICh', 'US-ICs', 'FI-Hyy'
-# 2) 'AU-Tum', 'ZA-Kru'
-# 4) 'CA-LP1': some windows should be removed; CA-Mer: one abnormal points; CA-TP3: has the clearest TA; 
-# 5) CZ-RAJ: one high point; DE-Gri: many bad points; DE-Hte: abnormal points; DE-RuW, lowTS should be removed; 
-# 6) ES-LJu: abnormal points; FR-Bil: two abnormal points; FR-FBn: abnormal points; FR-Pue, GF-Guy; IT-Lav; IT-Ren;
-# 7) IT-SRo; IT-TrF; US-BZB; US-Ho1; US-Jo2, US-MBP, US-MtB, US-Myb, US-RIs, US-Uaf, US-Whs, US-Wrc,  
-
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, lme4)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
@@ -48,6 +32,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
 
 priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 
+priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
 for (id in 1:nrow(site_info)) {
   # id = 3  # 3, 23:25, 27, 36, 57, 64, 67, 77, 81, 89, 105,  1:nrow(site_info) c(81, 63, 93, 98)
@@ -69,6 +54,21 @@ for (id in 1:nrow(site_info)) {
   if (site_info$SWC_use[id] == 'YES') {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
+  
+  # if no measured SWC data, use daily SWC data from ERA5 land reanalysis
+  ########################################################################
+  if (site_info$SWC_use[id] == 'NO') {
+    a_measure_night_complete$SWC <- NULL
+    ac$SWC <- NULL
+    # use SWC data from ERA5 land climate reanalysis
+    swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
+    # attach to a_measure_night_complete and ac
+    a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    site_info$SWC_use[id] = 'YES'
+  }
+  #########################################################################
+  
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -244,11 +244,19 @@ for (id in 1:nrow(site_info)) {
                        prior = priors_year, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
 
-      # if brm models fail, try another time
-      if (inherits(mod, "try-error")) {
+      if (!inherits(mod, "try-error")) {
+        np <- nuts_params(mod)
+        n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
+        failed_brm <- n_divergent > 0 
+      } else {
+        failed_brm <- TRUE
+      }
+      
+      # if brm models fail or have divergent transitions, try another time
+      if (failed_brm) {
         mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
-                             prior = priors_year, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
-                             control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0)) # , silent = 2
+                             prior = priors_year, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
       }
       
       # extract model results
@@ -313,8 +321,8 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp_water.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp_water.csv', row.names = F)
+write.csv(outcome, 'data/outcome_temp_water.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_water.csv', row.names = F)
 
 
 

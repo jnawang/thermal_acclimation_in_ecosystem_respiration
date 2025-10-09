@@ -275,6 +275,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_window_temp.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_window_temp.csv', row.names = F)
+write.csv(outcome, 'data/outcome_temp.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp.csv', row.names = F)
 
