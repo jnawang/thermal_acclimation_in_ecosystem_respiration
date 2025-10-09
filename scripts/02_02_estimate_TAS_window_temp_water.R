@@ -20,6 +20,12 @@ feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 
+swc_ERA5 <- read.csv(file.path(dir_rawdata, "ERA5_daily_swc_1990_2024_allsites.csv"))
+swc_ERA5$date <- as.Date(swc_ERA5$date)   # , format = "%m/%d/%y"
+swc_ERA5$YEAR <- year(swc_ERA5$date)
+swc_ERA5$MONTH <- month(swc_ERA5$date)
+swc_ERA5$DAY <- day(swc_ERA5$date)
+
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
                       nwindow = integer(), TAS = double(), TASp = double())
