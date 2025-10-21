@@ -23,7 +23,7 @@ feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tS
 
 # put a for loop here; nrow(site_info)
 for (id in 1:nrow(site_info)) {
-  # id = 42
+  id = 108
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
@@ -415,8 +415,8 @@ for (id in 1:nrow(site_info)) {
   # ensure no NA values
   for (i in 4:6) {
     na.gf <- which(is.na(T_gf[,i]))
-    if (length(na.gf) > 0) {
-      T_gf[na.gf, i] <- T_gf[max(na.gf - as.integer(1/dt), 1), i]
+    for (j in na.gf) {
+      T_gf[j, i] <- T_gf[max(j - 24/as.numeric(dt), 1), i]
     }
   }
   
