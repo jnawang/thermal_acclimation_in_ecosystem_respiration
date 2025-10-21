@@ -6,20 +6,28 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
+
+# It takes 2 days to finish the estimate of TAS 
+
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
-dir_rawdata <- '/Users/jw2946/Documents/stability_project/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
 feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
+
+swc_ERA5 <- read.csv(file.path(dir_rawdata, "ERA5_daily_swc_1990_2024_allsites.csv"))
+swc_ERA5$date <- as.Date(swc_ERA5$date)   # , format = "%m/%d/%y"
+swc_ERA5$YEAR <- year(swc_ERA5$date)
+swc_ERA5$MONTH <- month(swc_ERA5$date)
+swc_ERA5$DAY <- day(swc_ERA5$date)
 
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
@@ -35,7 +43,7 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
-
+  
 for (id in 1:nrow(site_info)) {
   # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
@@ -53,9 +61,20 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
   
-  ####################not consider water, so set SWC_use = "NO" for all sites###############
-  site_info$SWC_use[id] = 'NO'
-  ##########################################################################################
+  # if no measured SWC data use daily SWC from ERA5 land
+  ####################################################
+  if (site_info$SWC_use[id] == 'NO') {
+    a_measure_night_complete$SWC <- NULL
+    ac$SWC <- NULL
+    # use SWC data from ERA5 land climate reanalysis
+    swc_ERA5_site <- swc_ERA5[swc_ERA5$name == name_site, ]
+    # attach to a_measure_night_complete and ac
+    a_measure_night_complete <- a_measure_night_complete %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
+    site_info$SWC_use[id] = 'YES'
+  }
+  ###########################################
+
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -242,7 +261,7 @@ for (id in 1:nrow(site_info)) {
                              prior = priors_year, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
                              control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
       }
-      
+
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
@@ -289,7 +308,7 @@ for (id in 1:nrow(site_info)) {
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS_temp_gpp.png'))
+  ggsave(paste0('graphs/', name_site, '_TAS.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site
@@ -303,7 +322,8 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, 'data/outcome_temp_gpp.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_gpp.csv', row.names = F)
+write.csv(outcome, 'data/outcome_final.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_final.csv', row.names = F)
+
 
 

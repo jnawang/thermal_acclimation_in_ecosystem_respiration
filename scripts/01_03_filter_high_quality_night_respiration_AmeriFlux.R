@@ -412,6 +412,14 @@ for (id in 1:nrow(site_info)) {
 
   # I have to gap fill TA, TS, NEE;
   T_gf <- ac %>% group_by(DOY, HOUR, MINUTE) %>% summarise(TA_gf=mean(TA, na.rm=T), TS_gf=mean(TS, na.rm=T), NEE_gf=mean(NEE_uStar_f, na.rm=T))  # for gap fill only.
+  # ensure no NA values
+  for (i in 4:6) {
+    na.gf <- which(is.na(T_gf[,i]))
+    if (length(na.gf) > 0) {
+      T_gf[na.gf, i] <- T_gf[max(na.gf - as.integer(1/dt), 1), i]
+    }
+  }
+  
   if (!"TA_gf" %in% colnames(ac)) {
     ac   <- ac %>% left_join(T_gf, by=c("DOY", "HOUR", "MINUTE"))
   }

@@ -6,16 +6,14 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
-
-# It takes 2 days to finish the estimate of TAS 
-
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Users/jw2946/Documents/stability_project/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -43,12 +41,15 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
-  
 for (id in 1:nrow(site_info)) {
-  # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
+  # id = 3  # 3, 23:25, 27, 36, 57, 64, 67, 77, 81, 89, 105,  1:nrow(site_info) c(81, 63, 93, 98)
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
+  
+  # if (!name_site %in% c("DE-Gri", "DE-Hte", "DE-RuW", "ES-LJu", "FR-Bil", "FR-FBn", "FR-Pue", "GF-Guy", "IT-Lav", "IT-Ren", "IT-SRo", "IT-TrF", "US-BZB", "US-Ho1", "US-Jo2", "US-MBP", "US-MtB", "US-Myb", "US-RIs", "US-Uaf", "US-Whs", "US-Wrc")) {
+  #   next
+  # }
   
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
@@ -61,8 +62,8 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
   
-  # if no measured SWC data use daily SWC from ERA5 land
-  ####################################################
+  # if no measured SWC data, use daily SWC data from ERA5 land reanalysis
+  ########################################################################
   if (site_info$SWC_use[id] == 'NO') {
     a_measure_night_complete$SWC <- NULL
     ac$SWC <- NULL
@@ -73,8 +74,8 @@ for (id in 1:nrow(site_info)) {
     ac <- ac %>% left_join(swc_ERA5_site[, c('YEAR', 'MONTH', 'DAY', 'SWC')], by = c('YEAR', 'MONTH', 'DAY'))
     site_info$SWC_use[id] = 'YES'
   }
-  ###########################################
-
+  #########################################################################
+  
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -84,7 +85,7 @@ for (id in 1:nrow(site_info)) {
     summarise(NEE_daytime1 = max(-sum(NEE_uStar_f, na.rm=T) * dt * 60 / 86400, 0.0), .groups = "drop")
   # get rolling average of the prior three days
   ac_day$NEE_daytime <- rollapply(ac_day$NEE_daytime1, width = 3, FUN = mean,
-                                  align = "right", fill = ac_day$NEE_daytime1[1])
+                                   align = "right", fill = ac_day$NEE_daytime1[1])
   
   # attach it to nighttime data
   if (!"NEE_daytime1" %in% names(a_measure_night_complete)) {
@@ -122,35 +123,41 @@ for (id in 1:nrow(site_info)) {
   ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
   control_year <- ac_yearly_gs$growing_year[which.min(abs(ac_yearly_gs$TS - mean(ac_yearly_gs$TS)))]
 
-  # determine moving window size and number of windows
+  # minimum number of observations within each window.
   if (dt == 30) {
     nobs_threshold <- 100
   } else {
     nobs_threshold <- 60
   }
   
+  # the first method to calculate window size   
+  # nobs1day <- sum(between(a_measure_night_complete$DOY, gStart, gEnd)) / length(years) / (gEnd - gStart + 1)
+  # window_size <- max(14, round(nobs_threshold / nobs1day))
+  
   # use uniform window size: 2 weeks
   window_size <- 14
   
-  # use non-overlapping windows and determine number of windows for growing season
+  # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
+  # #2 method to calculate window size
+  # nwindow <- round((gEnd - gStart + 1 - window_size) / 14) + 1
 
-  #------------------------------------PREPARE FOR formula, stprm, priors of ER models---------------------------------
+  #------------------------------------PREPARE FOR formula, parameter, stprm, priors of ER models---------------------------------
   if (site_info$SWC_use[id] == 'YES') {
     # for brm models
-    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC) * (C0 + NEE_daytime * k2)
-    param <- alpha+beta+C0+Hs+k2 ~ 1
-    priors <- priors_temp + priors_water + priors_gpp
+    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC) * C0
+    param <- alpha+beta+C0+Hs ~ 1
+    priors <- priors_temp + priors_water
     # for nls models
     # alpha, CO, k2, and Hs are all positive and beta are negative
-    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
-    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6, Hs_ln = 2.3)
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln))
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, Hs_ln = 2.3)
   } else {
-    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * k2)
-    param <- alpha+beta+C0+k2 ~ 1
-    priors <- priors_temp + priors_gpp
-    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
-    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6)
+    frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
+    param <- alpha+beta+C0 ~ 1
+    priors <- priors_temp
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * exp(C0_ln)
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9)
   }
   param_year <- alpha+beta+C0 ~ 1
   priors_year <- priors_temp
@@ -164,24 +171,22 @@ for (id in 1:nrow(site_info)) {
   for (iwindow in 1:nwindow) {
     window_start = gStart + window_size*(iwindow-1)
     window_end = min(gStart + window_size*iwindow, gEnd)
-    
+
     ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
     if (!between(mean(ac_yearly_window$TS, na.rm=T), max(tStart, 2.0), tEnd) & nwindow > 1) {
       next
     }
     
-    data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end)) 
+    data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end))
     # skip a window if no enough data; this is for sites ('US-ICt', 'US-ICh', 'US-ICs', 'FI-Sod') with a period of the whole day is daytime. 
     if (nrow(data) < 100) { next }
     
     # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
-    # this can give abnormal initial values. 
     mod_nls <- try(gsl_nls(fn=as.formula(frmu_nls), data=data, start=stprm))
     if (!inherits(mod_nls, "try-error")) {
       priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2), ", 1.0)")
       priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", -min(exp(coefficients(mod_nls)["beta_ln"]), 0.01), ", 0.1)")
       priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", min(exp(coefficients(mod_nls)["C0_ln"]), 10), ", 5)")
-      priors$prior[priors$nlpar == 'k2'] <- paste0("normal(", min(exp(coefficients(mod_nls)["k2_ln"]), 10), ", 2)")
       if (site_info$SWC_use[id] == 'YES') {
         priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
       }
@@ -189,21 +194,22 @@ for (id in 1:nrow(site_info)) {
 
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                      prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
-                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
+                     prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                     control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
     
     # update frmu_year and priors_year
     if (site_info$SWC_use[id] == 'YES') {
-      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * ", brms::fixef(mod0)["k2_Intercept", "Estimate"], ") * SWC / (SWC + ", brms::fixef(mod0)["Hs_Intercept", "Estimate"], ")")
+      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * C0 * SWC / (SWC + ", brms::fixef(mod0)["Hs_Intercept", "Estimate"], ")")
     } else {
-      frmu_year <- paste0("NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * ", brms::fixef(mod0)["k2_Intercept", "Estimate"], ")")
+      frmu_year <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
     }
     # use this result as prior of each year
-    priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
-    priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
-    priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod0)["C0_Intercept", "Estimate"], ", 5)")
-
+    priors_year$prior[priors_year$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
+    priors_year$prior[priors_year$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
+    priors_year$prior[priors_year$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod0)["C0_Intercept", "Estimate"], ", 5)")
+    
+    
     # get reference temperature, SWC, and NEEday of each window
     TSref <- mean(ac$TS[between(ac$DOY, window_start, window_end)], na.rm=T)
     NEEdayref <- mean(ac_day$NEE_daytime[between(ac_day$DOY, window_start, window_end)], na.rm=T)
@@ -237,17 +243,15 @@ for (id in 1:nrow(site_info)) {
         if (nrow(data_subset) >= nobs_threshold & (window_end + extend_days) >= gEnd & TSref >= max(data_subset$TS, na.rm=T)) {break}
         if (extend_days > (gEnd - gStart) / 2.0) {break}   # max window size for some years = 91; 3 month
       }
+      
       df_site_year_window[icount, 4] <- nrow(data_subset)
       df_site_year_window[icount, 5] <- extend_days
-      
-      mod <- try(brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
+        
+      mod <- brms::brm(brms::bf(frmu_year, param_year, nl = TRUE),
                        prior = priors_year, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
-                       control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
-      
+                       control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
+
       if (!inherits(mod, "try-error")) {
-        # cmdfit <- mod$fit
-        # diag <- cmdfit$sampler_diagnostics()
-        # n_divergent <- sum(diag[, , "divergent__",])
         np <- nuts_params(mod)
         n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
         failed_brm <- n_divergent > 0 
@@ -261,18 +265,17 @@ for (id in 1:nrow(site_info)) {
                              prior = priors_year, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
                              control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
       }
-
+      
       # extract model results
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
       # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      # lines(data_subset$TS, fitted(mod)[, "Estimate"])
+      # lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
       # put other parameters
-      df_site_year_window[icount, 'k2'] <- brms::fixef(mod0)["k2_Intercept", "Estimate"]
       if (site_info$SWC_use[id] == 'YES') {
         df_site_year_window[icount, 'Hs'] <- brms::fixef(mod0)["Hs_Intercept", "Estimate"]
       }
@@ -298,32 +301,35 @@ for (id in 1:nrow(site_info)) {
     if (length(id.remove) > 0) {
       df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
       icount <- icount - length(id.remove)
-    }  
+    }
     
   }
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
   
+  tmp <- df_site_year_window %>% group_by(growing_year) %>% summarise(TS = mean(TS), lnRatio = sum(lnRatio*ERref)/sum(ERref)) # %>% left_join(ac_yearly_gs, by="growing_year")
+  
   plot <- df_site_year_window %>% ggplot(aes(x=TS, y=lnRatio, col=window)) +
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS.png'))
+  ggsave(paste0('graphs/', name_site, '_TAS_temp_water.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
+  # outcome[id, c("TAS", "TASp")] <- summary(lm(data=tmp, lnRatio ~ TS))$coefficients[2, c(1, 4)]
   if (length(unique(df_site_year_window$window)) > 1) {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
   } else {
     outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
   }
 }
-# end of each site
 
-write.csv(outcome, 'data/outcome_final.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_final.csv', row.names = F)
+# end of each site
+write.csv(outcome, 'data/outcome_temp_water.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_water.csv', row.names = F)
 
 
 

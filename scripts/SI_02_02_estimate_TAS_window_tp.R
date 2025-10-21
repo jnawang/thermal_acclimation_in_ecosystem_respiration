@@ -13,7 +13,7 @@
 # We need to differentiate sites with water and sites without water; they use different equations. 
 
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
