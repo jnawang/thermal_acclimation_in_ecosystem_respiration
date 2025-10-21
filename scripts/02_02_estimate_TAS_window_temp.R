@@ -17,8 +17,9 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesp
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Users/jw2946/Documents/stability_project/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
