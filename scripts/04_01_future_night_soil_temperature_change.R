@@ -2,9 +2,10 @@
 # Authors: Junna Wang, October, 2025
 
 # This script needs to read data stored on data server. 
-# In order to reproduce this script you have to download data from https://www.worldclim.org/
+# In order to reproduce this script, you have to download data from https://www.worldclim.org/
+# The raw data includes wc2.1_2.5m_tmin in 2000-2020 and wc2.1_2.5m_tmin_2041-2060 of 13 global circulation models. 
 
-# it takes *** to run through this script. 
+# it takes ~30min to run through this script. 
 
 library(librarian)
 shelf(dplyr, terra)
@@ -34,9 +35,9 @@ for (i in 1:12) {
   id <- grepl(pattern=paste0(month, '.tif$'), files)
   base_line <- c(base_line, terra::app(terra::rast(file.path(dir, files[id])), fun=mean))
 }
-plot(base_line)
-#
+
 names(base_line) <- 1:12
+plot(base_line)
 
 #----------------Step 2: get monthly temperature of the future period under emissions scenario (SSP245)
 files <- list.files(path=file.path(dir_rawdata, 'Climate', 'wc2.1_2.5m_tmin_2041-2060'), pattern='.tif$', full.names = T)  # 12 future models
@@ -68,7 +69,7 @@ for (ssp in ssps) {
   #----------------extract temperature change at our study sites----------------
   icell <- adjacent(Tmin_change2010_2050, cellFromXY(Tmin_change2010_2050, xy), include=TRUE)
   tmp <- terra::extract(Tmin_change2010_2050, c(icell))
-  Tmin_month <- data.frame(site_ID=acclimation$site_ID)
+  Tmin_month <- data.frame(site_ID=site_info$site_ID)
   for (i in 1:ncol(tmp)) {
     Tmin_month[,i+1] <- as.vector(tapply(tmp[,i], rep(1:nrow(xy), times=5), mean, na.rm=T))
   }
