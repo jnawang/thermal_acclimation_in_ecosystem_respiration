@@ -1,7 +1,7 @@
 # This script estimates the effects of total thermal responses on future ecosystem respiration
 # Authors: Junna Wang, October, 2025
 
-# This script takes 1-2 hours to run. 
+# This script takes 5 min to run if we use gslnls, and takes 3 hours to run if we use brms to estimate model parameters. 
 
 library(librarian)
 shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls)
@@ -140,7 +140,8 @@ for (i in 1:length(files)) {
     # df_future <- data.frame(TS=night_pattern$TSf[id])
     # night_pattern$NEEf[id] <- fitted(mod, newdata=df_future)[, "Estimate"]
     
-    # # Alternative model to estimate parameters, this method is fast, but need more data to get reliable results. 
+    #----------------------------------------------------------------------------------------------------------
+    # Alternative model to estimate parameters, this method is fast, but need more data to get reliable results.
     frmu   <- NEE ~ C_pool * exp(alpha * TS + beta*TS^2)
     if (name_site=='ZA-Kru') {
       stprm  <- c(C_pool=10, alpha=0.1, beta=-0.01)
