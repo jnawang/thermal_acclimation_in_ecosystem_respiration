@@ -1,15 +1,16 @@
 # This script estimates the effects of total thermal responses on future ecosystem respiration
 # Authors: Junna Wang, October, 2025
 
-# This script takes 5 min to run if we use gslnls, and takes 3 hours to run if we use brms to estimate model parameters. 
+# This script takes 5 min to run if we use gslnls, and takes 9 hours to run if we use brms to estimate model parameters. 
+# their results are almost the same, so we use gslnls. 
 
 library(librarian)
 shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 options(na.action = "na.omit")
@@ -179,10 +180,10 @@ for (i in 1:length(files)) {
 #
 write.csv(acclimation, file='data/acclimation_data_future.csv', row.names = F)
 
-# Overall effects: 0.2259778
+# Overall effects: 0.2259778 / 0.2370858
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
 
-# if we only consider the sites with significant effects, the ratio is about 0.2261874 
+# if we only consider the sites with significant effects, the ratio is about 0.2261874 / 0.2381808
 acclimation <- acclimation %>% mutate(NEE_night_mod_fa_sig = ifelse(TAS_totp > 0.05, NEE_night_mod_f, NEE_night_mod_fa))
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa_sig)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
 
