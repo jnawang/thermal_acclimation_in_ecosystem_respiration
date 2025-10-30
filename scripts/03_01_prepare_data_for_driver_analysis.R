@@ -3,7 +3,9 @@
 
 # This script gets soil carbon, climate conditions, and spectral information (GPP, LAI, EVI, NDVI). 
 # Spectral information is from NASA earth data. 
-# Elevation of DE-SfS is from 5-m global elevation map and elevation of other sites are from PI.  
+# Elevation of DE-SfS is from 5-m global elevation map and elevation of other sites are from PI.
+
+# this script takes 1-2 mins to run. 
 
 library(librarian)
 shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
@@ -20,8 +22,10 @@ site_info <- read.csv('data/site_info.csv')
 # get measured soil carbon data from AmeriFlux BIF data
 BIF <- read.csv(file.path(dir_rawdata, 'AMF_AA-Net_BIF_CCBY4_20251017.csv'))
 BIF.site <- BIF %>% filter(SITE_ID %in% site_info$site_ID) %>% filter(VARIABLE=='SOIL_CHEM_C_ORG') %>% group_by(SITE_ID) %>% summarise(soc_obs = mean(as.numeric(DATAVALUE), na.rm=T), .groups = 'drop')     # 26 sites
+# the unit of SOIL_CHEM_C_ORG: g C kg soil-1
 
 # if no measured data available, we use GSOCmap1.5.0.tif
+# the unit of this product: total SOC stocks t/ha
 stat.soil <- data.frame(site_ID=site_info$site_ID)
 #
 GSOCmap <- terra::rast(file.path(dir_rawdata, 'GSOCmap1.5.0.tif'))
@@ -35,6 +39,8 @@ stat.soil$GSOC <- terra::extract(GSOCmap, xy)$GSOCmap1.5.0
 # Compare these field data with map data, why I did not think of this method?
 tmp <- BIF.site %>% left_join(stat.soil, by=c('SITE_ID'='site_ID'))
 cor.test(tmp$soc_obs, tmp$GSOC)  # p-value = 0.034, r = 0.417
+plot(tmp$soc_obs, tmp$GSOC)
+
 # I need to do some corrections for GSOC
 model <- lm(data=tmp, GSOC ~ soc_obs)
 BIF.site$GSOC_obs <- predict(model, tmp[c("soc_obs")])
@@ -62,10 +68,11 @@ for (i in 1:length(files)) {
   print(paste0(i, name_site))
   stat.climate[i, 1] <- name_site        # the last value
   ac <- readRDS(files[i])
+  
   # use only the years with qualified data
-  outcome <- readRDS(file.path(dir_rawdata, 'RespirationData', paste0(name_site, '_outcome.RDS')))
-  good_years <- as.integer(colnames(outcome$result)[!is.na(outcome$result[1,])])
-  good_years <- good_years[!is.na(good_years)]
+  a_measure_night_complete <- readRDS(file.path(dir_rawdata, 'RespirationData', paste0(name_site, '_nightNEE.RDS')))
+  good_years <- unique(a_measure_night_complete$YEAR)
+  
   # I have to gap fill TA, TS, and NEE, if needed.
   if (!"TA_gf" %in% colnames(ac)) {
     T_gf <- ac %>% group_by(DOY, HOUR, MINUTE) %>% summarise(TA_gf=mean(TA, na.rm=T), TS_gf=mean(TS, na.rm=T), NEE_gf=mean(NEE, na.rm=T), .groups = 'drop')  # for gap fill only.    
@@ -152,9 +159,7 @@ cor(stat.climate[, 2:14])
 #---------------------------------------------------SPECTRAL DATA------------------------------------------------
 # Take a look at spectral data
 file1    <- read.csv(file.path(dir_rawdata, 'towers-MOD13A2-061-results.csv'))  ##EVI and NDVI
-# remove nonsense results
-# file1$MOD13A2_061__1_km_16_days_EVI[file1$MOD13A2_061__1_km_16_days_EVI < 0]  <- NA
-# file1$MOD13A2_061__1_km_16_days_NDVI[file1$MOD13A2_061__1_km_16_days_NDVI < 0]  <- NA
+
 # only use good quality data
 file1$MOD13A2_061__1_km_16_days_EVI[!file1$MOD13A2_061__1_km_16_days_VI_Quality_MODLAND_Description %in% c("VI produced, good quality", "VI produced, but check other QA")]  <- NA
 file1$MOD13A2_061__1_km_16_days_NDVI[!file1$MOD13A2_061__1_km_16_days_VI_Quality_MODLAND_Description %in% c("VI produced, good quality", "VI produced, but check other QA")]  <- NA
@@ -185,9 +190,8 @@ file1_interp <- file1_interp %>% group_by(ID) %>% mutate(NDVI_interp = na.approx
 
 #######
 file2    <- read.csv(file.path(dir_rawdata, 'towers-MOD15A2H-061-results.csv'))  ## Fpar and LAI
-# remove abnormal results
-# file2$MOD15A2H_061_Fpar_500m[file2$MOD15A2H_061_Fpar_500m > 100]  <- NA
-# file2$MOD15A2H_061_Lai_500m[file2$MOD15A2H_061_Lai_500m > 100]  <- NA
+
+# remove low quality data
 file2$MOD15A2H_061_Fpar_500m[file2$MOD15A2H_061_FparLai_QC_MODLAND_Description == "Other Quality (back-up algorithm or fill values)"] <- NA
 file2$MOD15A2H_061_Lai_500m[file2$MOD15A2H_061_FparLai_QC_MODLAND_Description == "Other Quality (back-up algorithm or fill values)"] <- NA
 file2$Date <- as.Date(file2$Date, format = "%m/%d/%y")
@@ -200,28 +204,10 @@ file2_interp <- file2 %>% mutate(month = month(Date)) %>% group_by(ID, month) %>
 # interpolate months with missed values
 file2_interp <- file2_interp %>% group_by(ID) %>% mutate(Fpar_interp = na.approx(Fpar, rule = 2), Lai_interp = na.approx(Lai, rule = 2))
 
-# do linear interpolation for missing data
-# file2_interp <- data.frame()
-# #
-# IDs <- unique(file2$ID)
-# for (id in IDs) {
-#   # print(id)
-#   data.site <- file2 %>% filter(ID == id)
-#   data.site$LAI <- na.approx(data.site$MOD15A2H_061_Lai_500m, data.site$Date, na.rm = FALSE)
-#   data.site$Fpar <- na.approx(data.site$MOD15A2H_061_Fpar_500m, data.site$Date, na.rm = FALSE)
-#   file2_interp <- rbind(file2_interp, data.site[, c('ID', 'Date', 'LAI', 'Fpar')])
-#   #
-#   # p <- ggplot(data = data.site, aes(x=Date, y=MOD15A2H_061_Lai_500m)) +
-#   #   geom_point() +
-#   #   labs(title = id)
-#   # plot(p)
-# }
-
 #####
 file3  <- read.csv(file.path(dir_rawdata, 'towers-MYD17A2HGF-061-results.csv'))  ##GPP
 
-# remove abnormal results;
-# file3$MYD17A2HGF_061_Gpp_500m[file3$MYD17A2HGF_061_Gpp_500m > 100] <- NA
+# remove low quality data
 file3$MYD17A2HGF_061_Gpp_500m[file3$MYD17A2HGF_061_Psn_QC_500m_MODLAND_Description == "Other quality (back-up algorithm or fill values)"] <- NA
 file3$Date <- as.Date(file3$Date, format = "%m/%d/%y")
 
@@ -230,20 +216,6 @@ file3_interp <- file3 %>% mutate(month = month(Date)) %>% group_by(ID, month) %>
   summarise(GPP = max(mean(MYD17A2HGF_061_Gpp_500m, na.rm=T), 0.0), n_GPP = sum(!is.na(MYD17A2HGF_061_Gpp_500m)), .groups = 'drop')
 
 file3_interp <- file3_interp %>% group_by(ID) %>% mutate(GPP_interp = na.approx(GPP, rule = 2))
-
-#
-# file3_interp <- data.frame()
-# IDs <- unique(file3$ID)
-# for (id in IDs) {
-#   # print(id)
-#   data.site <- file3 %>% filter(ID == id)
-#   data.site$GPP <- na.approx(data.site$MYD17A2HGF_061_Gpp_500m, data.site$Date, na.rm = FALSE)
-#   file3_interp <- rbind(file3_interp, data.site[, c('ID', 'Date', 'GPP')])  
-#   # p <- ggplot(data = data.site, aes(x=Date, y=GPP)) +
-#   #   geom_point() +
-#   #   labs(title = id)
-#   # plot(p)
-# }
 
 # site average data: vegetation index
 VI <- file1_interp %>% group_by(ID) %>% summarise(EVI=mean(EVI_interp, na.rm=T), NDVI=mean(NDVI_interp, na.rm=T)) 
@@ -266,7 +238,7 @@ corrplot(cor(data.spectral.tower[, 2:9]),
 #--------------------------------combine soil, climate, spectral, and thermal response strength data together-------------
 data.TAS_tot <- read.csv('data/outcome_temp.csv')
 data.TAS_tot <- data.TAS_tot %>% rename("TAS_tot" = "TAS", "TAS_totp" = "TASp")
-data.TAS <- read.csv('data/outcome_final.csv')
+data.TAS <- read.csv('data/outcome_temp_water_gpp.csv')
 
 acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, 1:8], by = "site_ID") %>% 
   left_join(data.spectral[, c("ID", "EVI", "NDVI", "LAI", "GPP")], by=c("site_ID" = "ID")) %>% 
