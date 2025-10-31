@@ -12,6 +12,8 @@
 
 ## Structure of Rscripts:
 
+# https://github.com/lter/lterwg-flux-gradient
+
 01_data_preparation_for_thermal_acclimation_estimate
 
 -   01_01_estimate_soil_temperature_at_some_sites
