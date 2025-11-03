@@ -5,7 +5,7 @@
 #  the method is random forests for most sites, but we used linear regression for three sites ("DE-Hte", "FR-FBn", "US-PFa") due to limited (1-2 years) TS observations.
 #   
 #  Author: Junna Wang, July 2025
-#  It will take ~30 min to finish running this script. 
+#  It will take ~40 min to finish running this script. 
 
 library(librarian)
 shelf(randomForest, caret, amerifluxr, lubridate, tidyverse, ranger)
@@ -182,7 +182,7 @@ for (id in id_estimate_TS) {
   }
   plot(data$TS_pred)
   
-  write.csv(data, file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')), row.names = F)
+  write.csv(data, file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')), row.names = F)
 }
 
 # all R2 should be higher than 0.83. 
