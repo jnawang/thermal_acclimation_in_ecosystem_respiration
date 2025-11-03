@@ -76,7 +76,7 @@ for (id in 1:nrow(site_info)) {
   ac <- ac %>% left_join(sunrise_set, by = c('DATE' = 'date'))
   
   # determine: day-time or night-time
-  dt <- a$TIMESTAMP[2] - a$TIMESTAMP[1]
+  dt <- difftime(a$TIMESTAMP[2], a$TIMESTAMP[1], units = "hours")
   a$daytime <- a$TIMESTAMP + dt/2.0 >= ac$sunrise & a$TIMESTAMP - dt/2.0 <= ac$sunset
   
   # special cases: sites in Arctic do not have sunrise and sunset sometime of a year
@@ -143,6 +143,7 @@ for (id in 1:nrow(site_info)) {
   # soil temperature TS
   if (site_info$estimate_Ts[id] == 'YES') {
     df_TS <- read.csv(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')))
+    df_TS$TIMESTAMP <- ymd_hms(df_TS$TIMESTAMP)
     df_TS <- left_join(data.frame(TIMESTAMP=ac$TIMESTAMP), df_TS, by = "TIMESTAMP")
     ac$TS <- df_TS$TS_pred
     rm(df_TS)

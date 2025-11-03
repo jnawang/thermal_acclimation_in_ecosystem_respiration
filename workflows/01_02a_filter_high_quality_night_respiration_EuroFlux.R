@@ -87,6 +87,7 @@ for (id in 1:nrow(site_info)) {
     a$TS_F_MDS_1_QC <- a$TS_F_MDS_2_QC
   } else if (name_site %in% c("FR-Fon", "CH-Dav", "DE-Akm", "DE-Hte", "FR-Bil", "FR-Pue", "FR-FBn", "CZ-RAJ")) {
     df_TS <- read.csv(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')))
+    df_TS$TIMESTAMP <- ymd_hms(df_TS$TIMESTAMP)
     df_TS <- left_join(data.frame(TIMESTAMP=a$TIMESTAMP), df_TS, by = "TIMESTAMP")
     a$TS_F_MDS_1 <- df_TS$TS_pred
     a$TS_F_MDS_1_QC[is.na(a$TS_F_MDS_1_QC) | a$TS_F_MDS_1_QC == 3] <- 2
