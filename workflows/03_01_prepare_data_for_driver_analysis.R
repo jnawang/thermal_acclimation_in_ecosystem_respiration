@@ -61,16 +61,16 @@ stat.climate <- data.frame(site_ID=character(), NEE=double(), NEE_day=double(), 
 # MA: mean annual; SS: seasonal variation; IA: inter-annual variation; RD: daily range; RS: seasonal range
 #
 # Read ac data
-files <- list.files(file.path(dir_rawdata, 'RespirationData'), pattern = '_ac.RDS$', full.names = TRUE)
+files <- list.files(file.path(dir_rawdata, 'RespirationData'), pattern = '_ac.csv$', full.names = TRUE)
 for (i in 1:length(files)) {
   # i = 67
   name_site <- substring(files[i], nchar(files[i])-12, nchar(files[i])-7)
   print(paste0(i, name_site))
   stat.climate[i, 1] <- name_site        # the last value
-  ac <- readRDS(files[i])
+  ac <- read.csv(files[i])
   
   # use only the years with qualified data
-  a_measure_night_complete <- readRDS(file.path(dir_rawdata, 'RespirationData', paste0(name_site, '_nightNEE.RDS')))
+  a_measure_night_complete <- read.csv(file.path(dir_rawdata, 'RespirationData', paste0(name_site, '_nightNEE.csv')))
   good_years <- unique(a_measure_night_complete$YEAR)
   
   # I have to gap fill TA, TS, and NEE, if needed.

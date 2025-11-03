@@ -1,5 +1,5 @@
 # Purpose of this script: prepare for data for fitting temperature-respiration curves for EuroFlux sites. 
-# Output of this script: two .RDS files. One for filtered night NEE, and the other for gap-filled whole time-series.
+# Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
 #  It will take ~ 30 mins to finish running this script. 
 
@@ -86,7 +86,7 @@ for (id in 1:nrow(site_info)) {
     a$TS_F_MDS_1 <- a$TS_F_MDS_2  # use TS of second layer because the first layer is incomplete
     a$TS_F_MDS_1_QC <- a$TS_F_MDS_2_QC
   } else if (name_site %in% c("FR-Fon", "CH-Dav", "DE-Akm", "DE-Hte", "FR-Bil", "FR-Pue", "FR-FBn", "CZ-RAJ")) {
-    df_TS <- readRDS(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')))
+    df_TS <- read.csv(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')))
     df_TS <- left_join(data.frame(TIMESTAMP=a$TIMESTAMP), df_TS, by = "TIMESTAMP")
     a$TS_F_MDS_1 <- df_TS$TS_pred
     a$TS_F_MDS_1_QC[is.na(a$TS_F_MDS_1_QC) | a$TS_F_MDS_1_QC == 3] <- 2
@@ -305,8 +305,8 @@ for (id in 1:nrow(site_info)) {
   ac <- ac %>% filter(between(YEAR, iStart, iEnd))
   
   # save the ac and a_measure_night_complete data:
-  saveRDS(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.RDS')))
-  saveRDS(a_measure_night_complete, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.RDS')))
+  write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)
+  write.csv(a_measure_night_complete, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv')), row.names = F)
   
   feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=max(tStart, 0.0), tEnd=tEnd, nyear=length(good_years)))
 }

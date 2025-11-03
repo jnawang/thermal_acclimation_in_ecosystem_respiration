@@ -44,7 +44,7 @@ param <- alpha+beta+C0 ~ 1
 priors <- priors_temp
 
 #
-files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern = '_ac.RDS$', full.names = FALSE)
+files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern = '_ac.csv$', full.names = FALSE)
 # air and soil temperature patterns
 for (i in 1:length(files)) {
   ###
@@ -53,10 +53,10 @@ for (i in 1:length(files)) {
   #
   iacclimation <- which(acclimation$site_ID==name_site)
   #
-  ac <- readRDS(file.path(dir_rawdata, "RespirationData", files[i]))
+  ac <- read.csv(file.path(dir_rawdata, "RespirationData", files[i]))
   #
   # use only the years with qualified data
-  a_measure_night_complete <- readRDS(file.path(dir_rawdata, "RespirationData", paste0(name_site, "_nightNEE.RDS")))
+  a_measure_night_complete <- read.csv(file.path(dir_rawdata, "RespirationData", paste0(name_site, "_nightNEE.csv")))
   good_years <- unique(a_measure_night_complete$YEAR)
   
   # recalculate TS_TA relationship using TA threshold

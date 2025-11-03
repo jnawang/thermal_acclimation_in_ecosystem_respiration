@@ -1,5 +1,5 @@
 # Purpose of this script: prepare for data for fitting temperature-respiration curves for AmeriFlux sites. 
-# Output of this script: two .RDS files. One for filtered night NEE, and the other for gap-filled whole time-series.
+# Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
 #  It will take ~2 hours to finish running this script. 
 
@@ -142,7 +142,7 @@ for (id in 1:nrow(site_info)) {
   
   # soil temperature TS
   if (site_info$estimate_Ts[id] == 'YES') {
-    df_TS <- readRDS(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')))
+    df_TS <- read.csv(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')))
     df_TS <- left_join(data.frame(TIMESTAMP=ac$TIMESTAMP), df_TS, by = "TIMESTAMP")
     ac$TS <- df_TS$TS_pred
     rm(df_TS)
@@ -435,8 +435,8 @@ for (id in 1:nrow(site_info)) {
   }
 
   # save the ac and a_measure_night_complete data:
-  saveRDS(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.RDS')))
-  saveRDS(a_measure_night_complete, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.RDS')))
+  write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)
+  write.csv(a_measure_night_complete, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv')), row.names = F)
 
   feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=max(tStart, 0.0), tEnd=tEnd, nyear=length(good_years)))
 }

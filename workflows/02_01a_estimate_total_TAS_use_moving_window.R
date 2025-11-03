@@ -40,10 +40,10 @@ for (id in 1:nrow(site_info)) {
   
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
-  path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.RDS'))
+  path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv'))
   if (file.exists(path)) {
-    a_measure_night_complete <- readRDS(path)
-    ac <- readRDS(file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.RDS')))
+    a_measure_night_complete <- read.csv(path)
+    ac <- read.csv(file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')))
   }
   if (site_info$SWC_use[id] == 'YES') {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
