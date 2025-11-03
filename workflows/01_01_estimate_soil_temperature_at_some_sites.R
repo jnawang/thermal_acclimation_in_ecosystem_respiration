@@ -182,7 +182,7 @@ for (id in id_estimate_TS) {
   }
   plot(data$TS_pred)
   
-  saveRDS(data, file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')))
+  write.csv(data, file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.RDS')), row.names = F)
 }
 
 # all R2 should be higher than 0.83. 
