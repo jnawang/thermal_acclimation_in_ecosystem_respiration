@@ -38,11 +38,19 @@
 
 ## How to reproduce the workflow:
 
-1.  Download raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
+1.1 Download raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
 
--   the data is now stored on Yale data server.
+1.2 Download ERA5 daily soil water content data in 1990-2014 for all sites from <https://cds.climate.copernicus.eu/>
 
-2.  Use the *site_info.csv* file to get started.
+1.3 Download global soil carbon stock map from soilwise: <https://repository.soilwise-he.eu/cat/collections/metadata:main/items/7730e747-eb73-49c9-bfe6-84ebae718743>
+
+1.4 Download remotely sensed vegetation index, gpp, lai, and fpar for all sites from NASA earth data: <https://www.earthdata.nasa.gov/data/tools/appeears>
+
+1.5 Download BADM Data Product of all AmeriFlux sites: <https://ameriflux.lbl.gov/data/badm/>
+
+-   all the data are now stored on Yale data server.
+
+2.  Use the *site_info.csv* file in *data* folder to get started.
 
 -   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each flux file
 -   It is pre-required to run the workflow.
