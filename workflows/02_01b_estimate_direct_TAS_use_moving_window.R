@@ -1,7 +1,7 @@
 # This script estimates thermal acclimation strength in ecosystem respiration using moving window methods.
 # Authors: Junna Wang, August and September, 2025
 # Methods we tested:
-# Step 1: determine the window size; 2 weeks ~ 2 month
+# Step 1: determine the window size; 2 weeks ~ 4 weeks
 # Step 2: for a specific year, do we need to  due to data limitation (such as no observations during a period). 
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
@@ -313,8 +313,8 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, 'data/outcome_temp_water_gpp_test.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_water_gpp_test.csv', row.names = F)
+write.csv(outcome, 'data/outcome_temp_water_gpp.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_water_gpp.csv', row.names = F)
 
 
 

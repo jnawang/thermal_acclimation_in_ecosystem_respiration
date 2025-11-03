@@ -1,45 +1,52 @@
-# Strength and drivers of thermal acclimation in ecosystem respiration
+# Strength and drivers of thermal responses in ecosystem respiration
 
 ## Project objectives:
 
-**1.** Develop an algorithm to estimate thermal acclimation strength in ecosystem respiration (ER) using eddy-covariance data.
+**1.** Develop an algorithm to estimate site-level direct and total thermal response strength in ecosystem respiration (ER) using global eddy-covariance data.
 
-**2.** Estimate thermal acclimation strength at 93 global terrestrial ecosystems.
+**2.** Estimate direct and total thermal response strength at 110 terrestrial ecosystems.
 
-**3.** Identify drivers of thermal acclimation strength.
+**3.** Identify drivers of direct and total thermal response strength.
 
-**4.** Predict consequences of thermal acclimation on mediating future warming-induced ER increases.
+**4.** Predict how thermal responses will influence future warming-induced increases in ER.
 
 ## Structure of Rscripts:
 
-# https://github.com/lter/lterwg-flux-gradient
-
-01_data_preparation_for_thermal_acclimation_estimate
+01_data_preparation_for_thermal_response_estimate
 
 -   01_01_estimate_soil_temperature_at_some_sites
--   01_02_filter_high_quality_night_respiration_measurement
--   01_03_estimate_gross_primary_productivity (GPP) for each day at each study sites
-    -   hourly daytime NEE, hourly GPP
-    -   biweekly vegetation index: EVI and NDVI
-    -   daily SIF for some sites
--   01_04_download_measured_SIF(solar-induced chlorophyll fluorescence)\_LAI_data_from_NASA
--   01_05_develop_different_respiration_models
--   01_06_get_annual_temperature_respiration_curves_for_acclimation_strength_estimate
+-   01_02a_filter_high_quality_night_respiration_EuroFlux
+-   01_02b_filter_high_quality_night_respiration_AmeriFlux
 
-02_calculate_thermal_acclimation_for_all_sites
+02_calculate_thermal_response_strength(TAS)\_for_all_sites
 
--   02_01_get_annual_TS_ER_curves_for_each_site
--   02_02_estimate_thermal_acclimation_strenght_for_each_site
+-   02_01a_estimate_total_TAS_use_moving_window
+-   02_01b_estimate_direct_TAS_use_moving_window
+-   02_02_compare_different_TAS
 
-03_identify_drivers_thermal_acclimation_strength
+03_identify_drivers_of_thermal_response_strength
 
-04_calculate_thermal_acclimation_effects_on_future_respiration
+-   03_01_prepare_data_for_driver_analysis
+    -   data include climate, primary productivity, and soil organic carbon
+-   03_02_identify_thermal_response_driver
+    -   use random forests
 
-05_supplementary_scripts_address_reviewer_comments
+04_calculate_thermal_response_effects_on_future_respiration
 
--   05_01_why not using air temperature instead of soil temperature?
--   05_02_performance difference of different ER models?
-    -   only temperature
-    -   temperature + moisture
-    -   temperature + moisture + GPP
--   05_03_how about use an average year or the year whose temperature close to MAT as control conditions?
+-   04_01_get_future_night_soil_temperature_change
+-   04_02_thermal_response_effect_on_future_ecosystem_respiration
+
+## How to reproduce the workflow:
+
+1.  Download raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
+
+-   the data is now stored on Yale data server.
+
+2.  Use the *site_info.csv* file to get started.
+
+-   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each flux file
+-   It is pre-required to run the workflow.
+
+3.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
+
+4.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.

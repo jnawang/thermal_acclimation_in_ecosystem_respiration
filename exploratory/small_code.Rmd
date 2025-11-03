@@ -382,3 +382,27 @@ for (climate_class in climate_classes) {
 ```
 
 
+```{r compare TAS by two methods }
+
+dir <- "/Users/junnawang/YaleLab/thermal_acclimation"
+
+TAS_test <- read.csv(file.path(dir, 'data/outcome_temp_water_gpp_test.csv'))
+TAS <- read.csv(file.path(dir, 'data/outcome_temp_water_gpp.csv'))
+
+plot(TAS_test$TAS, TAS$TAS)
+
+cor.test(TAS_test$TAS, TAS$TAS)
+
+sum(TAS_test$TASp < 0.05 & TAS_test$TAS < 0.0)   # 21 is positive and 22 is negative; 
+sum(TAS$TASp < 0.05)
+
+mean(TAS_test$TAS[which(TAS_test$TASp < 0.05 & TAS_test$TAS < 0.0)])  # -0.04716169
+
+
+boxplot(TAS_test$TAS)
+boxplot(TAS$TAS)
+TAS$TAS_test <- TAS_test$TAS
+summary(lm(data = TAS, TAS_test ~ TAS))
+
+```
+
