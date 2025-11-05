@@ -58,3 +58,21 @@
 3.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
 
 4.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.
+
+## Output of the workflow:
+
+1.  18 csv files containing predicted soil temperature for 18 sites with incomplete soil temperature measurements.
+
+2.  110 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
+
+3.  110 csv files containing measured subhourly nightlight NEE and corresponding meteorological data (one file per site).
+
+4.  2 csv files containing estimated thermal response strength (TAS): one for *direct* TAS and one for *total* TAS.
+
+5.  1 csv file containing site-level climate, soil, and productivity characteristics used in the TAS driver analysis.
+
+6.  2 csv files containing the drivers of estimated TAS: one for *direct* TAS and one for *total* TAS.
+
+7.  1 csv file containing projected future changes in monthly nighttime soil temperature at each site.
+
+8.  1 csv file containing projected future mean nighttime ecosystem respiration, with and without considering thermal response strength.

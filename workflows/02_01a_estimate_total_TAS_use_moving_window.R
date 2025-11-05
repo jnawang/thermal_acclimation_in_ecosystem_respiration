@@ -167,7 +167,8 @@ for (id in 1:nrow(site_info)) {
       data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref)
     }
     
-    #----loop through each year----    
+    #----loop through each year----
+    ERref_control <- NA
     for (iyear in years) {
       print(paste(name_site, iwindow, iyear, sep='_'))
       icount = icount + 1
@@ -193,6 +194,8 @@ for (id in 1:nrow(site_info)) {
       
       df_site_year_window[icount, 4] <- nrow(data_subset)
       df_site_year_window[icount, 5] <- extend_days
+      
+      if (nrow(data_subset) <= nobs_threshold) { next }
         
       mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
@@ -205,7 +208,6 @@ for (id in 1:nrow(site_info)) {
       } else {
         failed_brm <- TRUE
       }
-      
       
       # if brm models fail or have divergent transitions, try another time
       if (failed_brm) {
@@ -235,6 +237,12 @@ for (id in 1:nrow(site_info)) {
       }
     }
     # end of each year loop
+    
+    # if no data in a control year during this window, use average ER across years as the reference conditions
+    if (is.na(ERref_control)) {
+      irow_site_window <- which(df_site_year_window$site_ID == name_site & df_site_year_window$window == paste(window_start, window_end, sep='_'))
+      ERref_control <- mean(df_site_year_window$ERref[irow_site_window], na.rm=T)
+    }
     
     df_site_year_window$lnRatio[(icount-length(years) + 1):icount] <- log(df_site_year_window$ERref[(icount-length(years) + 1):icount] / ERref_control)
     

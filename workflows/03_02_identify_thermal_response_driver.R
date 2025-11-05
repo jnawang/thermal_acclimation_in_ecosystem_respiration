@@ -1,57 +1,106 @@
 # This script identifies drivers of apparent and actual thermal response strength
 # Authors: Junna Wang, October, 2025
 
+# It takes 3min to run this script. 
+
 library(librarian)
-shelf(dplyr, ggplot2, corrplot, MuMIn, fBasics, car, lme4, vip, randomForest, caret, VSURF)
+shelf(dplyr, ggplot2, corrplot, MuMIn, fBasics, car, lme4, vip, randomForest, caret, VSURF, rsample)
 rm(list=ls())
 
 #
 acclimation <- read.csv('data/acclimation_data.csv')
 
 #------------------------do some explorations first-----------------------------
-# intrinsic TRS--more related to vegetation type
+# intrinsic TRS--more marginally related to vegetation (p = 0.0532 .) and climate (p = 0.0994 .)
 summary(lm(data=acclimation, TAS ~ IGBP))
 summary(lm(data=acclimation, TAS ~ Climate_class))
 summary(aov(TAS ~ IGBP, data=acclimation))
 summary(aov(TAS ~ Climate_class, data=acclimation))
 
-# apparent TRS--strongly affected by climate
-summary(lm(data=acclimation, TAS_tot ~ IGBP))
+# total TRS--strongly affected by both climate (p = 0.002592) and vegetation (p = 5.77e-05)
+summary(aov(data=acclimation, TAS_tot ~ IGBP))
 summary(lm(data=acclimation, TAS_tot ~ Climate_class))
+
+# Do I want to combine climate and vegetation groups?
+# combine climate class
+table(acclimation$Climate_class)
+# tropical (Am, n=1)
+# semi-arid (Bs, n = 8)
+# arid (Bw, n = 1)
+# hot summer Mediterranean (Csa, n = 10)
+# warm summer Mediterranean (Csb, n = 4)
+# humid subtropical (Cfa, Cfb, Cfc, n = 27)
+# humid continental (Dfa, Dfb, n = 37)
+# subarctic (Dfc, Dfd, Dwc, n = 19)
+# tundra (ET, n = 3)
+
+# combine vegetation class
+table(acclimation$IGBP)
+# combine DBF and DNF: these are decidulous forests
+# combine SAV and WSA: these are savannah
+
+acclimation <- acclimation %>% mutate(Climate_class_new = case_when(Climate_class %in% c("Bsh", "Bsk") ~ 'Bs', 
+                                                                    Climate_class %in% c("Bwk") ~ 'Bw',
+                                                                    Climate_class %in% c("Cfa", "Cfb", "Cfc") ~ 'Cf',
+                                                                    Climate_class %in% c("Csa") ~ 'Csa',
+                                                                    Climate_class %in% c("Csb") ~ 'Csb',
+                                                                    Climate_class %in% c("Dfa", "Dfb") ~ 'Df',
+                                                                    Climate_class %in% c("Dfc, Dfd", "Dwc") ~ 'Subartic',
+                                                                    Climate_class %in% c("ET") ~ 'ET')) %>%
+  mutate(IGBP_new = case_when(IGBP %in% c("CSH") ~ 'CSH', IGBP %in% c("DBF", "DNF") ~ 'DF', IGBP %in% c("EBF") ~ 'EBF',
+                              IGBP %in% c("ENF") ~ 'ENF', IGBP %in% c("GRA") ~ 'GRA', IGBP %in% c("MF") ~ 'MF',
+                              IGBP %in% c("OSH") ~ 'OSH', IGBP %in% c("SAV", "WSA") ~ 'SAV', IGBP %in% c("WET") ~ 'WET'))
+
+summary(lm(data=acclimation, TAS_tot ~ Climate_class_new)) # p-value: 1.795e-06
+summary(lm(data=acclimation, TAS_tot ~ IGBP_new))          # p-value: 0.001007
+
+summary(lm(data=acclimation, TAS ~ Climate_class_new)) # p-value: 0.05199
+summary(lm(data=acclimation, TAS ~ IGBP_new))          # p-value: 0.0425
+
+# Yes, the significance levels are almost the same with ungrouped cases. 
+
 
 #------------------------correlation among predictor variables------------------
 data.cor <- acclimation[, c(4, 7:20, 22)]
 cor(data.cor)
 
+#---------------contribution of direct and apparent thermal responses to TAS_tot----------
+acclimation$TAS_app <- acclimation$TAS_tot - acclimation$TAS
+(var(acclimation$TAS_app) + cov(acclimation$TAS_app, acclimation$TAS)) / var(acclimation$TAS_tot)  # 38%
+(var(acclimation$TAS) + cov(acclimation$TAS_app, acclimation$TAS)) / var(acclimation$TAS_tot)      # 62%
+# 62% of variations in TAS_total are explained by variation in direct TAS!
+# but mean TAS_total (0.02209273) is mostly (70%) contributed by TAS_app (-0.0167761);
+
 #----------------------------try simple linear regression-----------------------
-summary(lm(data=acclimation, TAS ~ MATA + ELEV + NEE_day + SOC))          # Only productivity is most important. 
-summary(lm(data=acclimation, TAS_tot ~ MATA + ELEV + NEE_day + SOC))      # The first 3 are all important. 
+summary(lm(data=acclimation, TAS ~ MATA + ELEV + GPP + SOC))          # Only productivity is most important. 
+summary(lm(data=acclimation, TAS_tot ~ MATA + ELEV + GPP + SOC))      # The first 3 are all important. 
 
-options(na.action = na.omit)
-TAS_tot_data <- acclimation[, c(4, 7:20)]
-model <- lm(TAS_tot ~ ., data = TAS_tot_data)   # climate class is strongly correlated to MATA [,-c()]
-summary(model)
-dredge(model)
-# elevation, MAT, NEE, NEE_day, NEE_night
-
-
-TAS_data <- acclimation[, c(4, 7:19, 22)]
-model <- lm(TAS ~ ., data = TAS_data)   # climate class is strongly correlated to MATA [,-c()]
-summary(model)
-dredge(model)
-# NEE, IAT 
+# options(na.action = na.omit)
+# TAS_tot_data <- acclimation[, c(4, 7:20)]
+# model <- lm(TAS_tot ~ ., data = TAS_tot_data)   # climate class is strongly correlated to MATA [,-c()]
+# summary(model)
+# dredge(model)
+# # Elevation, MAT, GPP, and vegetation index
+# 
+# 
+# TAS_data <- acclimation[, c(4, 7:19, 22)]
+# model <- lm(TAS ~ ., data = TAS_data)   # climate class is strongly correlated to MATA [,-c()]
+# summary(model)
+# dredge(model)
+# # GPP 
 
 #-------------------------------------------------------------------------------
-#----------------------------------try random forests---------------------------
+#----------------------try random forests, used in manuscript-------------------
 set.seed(222)
-acclimation.use <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC")]
-# acclimation.use$TAS <- acclimation$TAS_tot
+data_TAS <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC")]
+data_TAS_tot <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC")]
+
 # calculate vif of the four predictors
-lm_model <- lm(data=acclimation.use, TAS ~ .)
+lm_model <- lm(data=data_TAS, TAS ~ .)
 car::vif(lm_model)
 # vif: variance inflation factors
-#     ELEV     MATA      Lai  SOC 
-# 1.114907 1.306338 1.178243 1.172405
+#    ELEV     MATA     LAI     SOC 
+# 1.283012 1.163074 1.241224 1.149224
 #
 # stratify the data, and create folds
 acclimation$Climate_reclass <- acclimation$Climate_class
@@ -63,8 +112,7 @@ k_folds <- 5
 folds <- createFolds(acclimation$Climate_reclass, k = k_folds, list = TRUE, returnTrain = FALSE)
 #
 #
-# var.use[1:22] , "Lai" , "MAP", "MATA",  # do not incorporate nitrogen because it is hard to justify the highly non-linear results 
-data  <- acclimation.use # %>% filter(!is.na(age))  # adding ages also does not make sense to the results
+data  <- data_TAS
 # 
 perf = data.frame(RMSE_train=double(), R2_train=double(), MAE_train=double(), RMSE_test=double(), R2_test=double(), MAE_test=double())
 for (i in 1:40) {
@@ -101,7 +149,7 @@ train_control <- trainControl(method = "cv",  # Cross-validation
 set.seed(985)
 rf0 <- caret::train(form = TAS ~ ., data=data, method='rf', trControl = train_control, tuneLength = 5)
 print(rf0)
-rf0$bestTune
+rf0$bestTune    # mtry = 2
 rf0$results
 
 #####the model to use, with bootstrapping
@@ -121,10 +169,9 @@ for (i in 1:200) {
   print(i)
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
-  rf <- randomForest(formula = TAS ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=24, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]
+  rf <- randomForest(formula = TAS ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
+  Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
   varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
-  # type=2: the decrease in node impurity; The node impurity is measured by the Gini index; May have some problems. so I use type I: permutation-based MSE reduction. 
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
@@ -166,32 +213,124 @@ plot(partial$x[1:51], partial$y[1:51])
 plot(partial$x[52:102], partial$y[52:102])
 plot(partial$x[103:153], partial$y[103:153])
 plot(partial$x[154:204], partial$y[154:204])
-
 #
-# write.csv(partial, '/Users/jw2946/Documents/stability_project/manuscripts/plot/partial_plot.csv', row.names = F)
+write.csv(partial, 'data/partial_dependence_direct_TAS.csv', row.names = F)
 #
 #################################################################################################
-####the last best model
-rf0 <- randomForest(formula = TAS ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=24, ntree=500, importance=TRUE)
+####the last one best model for estimating direct TAS
+data <- acclimation[, c("TAS",  "LAI", "ELEV")]   #
+rf0 <- randomForest(formula = TAS ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)
 print(rf0)
 y0  <- predict(rf0, data) 
 print(postResample(pred=y0,  obs=data$TAS))
 #       RMSE   Rsquared        MAE 
-# 0.05788558 0.63570658 0.04197571
-# out of bag variation explained: 9.27% 
+# 0.03404003 0.35585143 0.02505136 
 #
 partialPlot(rf0, pred.data=data, x.var="ELEV")
 partialPlot(rf0, pred.data=data, x.var="LAI")
-# partialPlot(rf0, pred.data=data, x.var="MAP")
-partialPlot(rf0, pred.data=data, x.var="MATA")
-partialPlot(rf0, pred.data=data, x.var="SOC")
-# partialPlot(rf0, pred.data=data, x.var="soc")
-# partialPlot(rf0, pred.data=data, x.var="age")
 #
 varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
 
+#------------------------------------------------------------------------------------------------
+####the last one best model for estimating total TAS
+data <- acclimation[, c("TAS_tot", "LAI", "ELEV", "MATA", "SOC")]   # "LAI" is slightly better than "GPP"
+rf0 <- randomForest(formula = TAS_tot ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)
+y0  <- predict(rf0, data) 
+print(postResample(pred=y0,  obs=data$TAS_tot))
+#       RMSE   Rsquared        MAE 
+# 0.03591413 0.54699726 0.02571812 
+#
+partialPlot(rf0, pred.data=data, x.var="LAI")
+partialPlot(rf0, pred.data=data, x.var="ELEV")
+partialPlot(rf0, pred.data=data, x.var="SOC")
+partialPlot(rf0, pred.data=data, x.var="MATA")
+#
+varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
+           type=1, class=NULL, scale=TRUE,
+           main='Relative importance')
+
+#################################################################################################
+####get confidence intervals of the partial plot for total TAS
+data_strat <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC", "Climate_reclass")]
+strat_bootstrap <- bootstraps(data_strat, times = 200, strata = "Climate_reclass")
+# This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
+# Access the first bootstrap sample
+varImp  <- data.frame(elev=double(), mat=double(), lai=double(), ph=double())
+partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
+partial[1:51, 1]    <- "elev"
+partial[52:102, 1]  <- "mat"
+partial[103:153, 1] <- "lai"
+partial[154:204, 1] <- "soc"
+matrix.boot <- matrix(0, nrow=204, ncol=200)
+for (i in 1:200) {
+  print(i)
+  data_sample <- analysis(strat_bootstrap$splits[[i]])
+  data_sample <- data_sample[, 1:5]
+  rf <- randomForest(formula = TAS_tot ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
+  Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
+  varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
+  # partial plot values
+  tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
+  tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
+  tmp3 <- partialPlot(rf, pred.data=data, x.var="LAI", plot=FALSE)
+  tmp4 <- partialPlot(rf, pred.data=data, x.var="SOC", plot=FALSE)
+  if (i == 1) {
+    partial[1:51, 2]    <- tmp1$x
+    partial[52:102, 2]  <- tmp2$x
+    partial[103:153, 2] <- tmp3$x
+    partial[154:204, 2] <- tmp4$x
+  }
+  matrix.boot[1:51, i]    <- tmp1$y
+  matrix.boot[52:102, i]  <- tmp2$y
+  matrix.boot[103:153, i] <- tmp3$y
+  matrix.boot[154:204, i] <- tmp4$y
+}
+# confidence interval of RI; the three are almost equally important
+for (i in 1:4) {
+  print(quantile(varImp[,i], c(0.025, 0.05, 0.5, 0.95, 0.975)))
+}
+#       2.5%        5%       50%       95%     97.5% 
+# ele: 0.1727310 0.1860557 0.2562286 0.3395613 0.3470166  (2)
+# mat: 0.1074919 0.1324391 0.2100684 0.2741180 0.2814814  (4)
+# lai: 0.2315998 0.2426750 0.2911777 0.3624669 0.3842809  (1) 
+# soc: 0.1536467 0.1698291 0.2390745 0.3021813 0.3246712  (3)
+
+# confidence interval of bootstrap
+for (i in 1:204) {
+  partial[i, 3:7] <- quantile(matrix.boot[i,], c(0.025, 0.05, 0.5, 0.95, 0.975))
+}
+# standarize my x variable
+partial$x_norm   <- partial$x
+partial$x_norm[1:51] <- scale(partial$x[1:51])
+partial$x_norm[52:102] <- scale(partial$x[52:102])
+partial$x_norm[103:153] <- scale(partial$x[103:153])
+partial$x_norm[154:204] <- scale(partial$x[154:204])
+#
+plot(partial$x[1:51], partial$y[1:51])
+plot(partial$x[52:102], partial$y[52:102])
+plot(partial$x[103:153], partial$y[103:153])
+plot(partial$x[154:204], partial$y[154:204])
+#
+write.csv(partial, 'data/partial_dependence_total_TAS.csv', row.names = F)
 
 
+###------------------------------factors affecting apparent TAS-----------------
+data <- acclimation[, c("TAS_app", "LAI", "ELEV", "MATA", "SOC")]   # "LAI" is slightly better than "GPP"
+rf0 <- randomForest(formula = TAS_app ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)
+y0  <- predict(rf0, data) 
+print(postResample(pred=y0,  obs=data$TAS_app))
+#       RMSE   Rsquared        MAE 
+# 0.03595983 0.54196610 0.02583256 
+#
+partialPlot(rf0, pred.data=data, x.var="LAI")
+partialPlot(rf0, pred.data=data, x.var="ELEV")
+partialPlot(rf0, pred.data=data, x.var="SOC")
+partialPlot(rf0, pred.data=data, x.var="MATA")
+varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
+           type=1, class=NULL, scale=TRUE,
+           main='Relative importance')
+
+# this is opposite: MATA, SOC, and LAI are most important. 

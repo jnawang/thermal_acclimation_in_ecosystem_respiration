@@ -5,7 +5,7 @@
 # Spectral information is from NASA earth data. 
 # Elevation of DE-SfS is from 5-m global elevation map and elevation of other sites are from PI.
 
-# this script takes 1-2 mins to run. 
+# this script takes 2-3 mins to run. 
 
 library(librarian)
 shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
