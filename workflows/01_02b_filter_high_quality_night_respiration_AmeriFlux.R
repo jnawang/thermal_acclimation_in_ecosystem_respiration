@@ -23,7 +23,7 @@ feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tS
 
 # put a for loop here; nrow(site_info)
 for (id in 1:nrow(site_info)) {
-  # id = 108
+  # id = 14
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products

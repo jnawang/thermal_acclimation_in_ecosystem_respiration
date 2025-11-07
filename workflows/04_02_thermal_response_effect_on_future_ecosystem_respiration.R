@@ -106,7 +106,7 @@ for (i in 1:length(files)) {
     window_start = gStart + window_size*(iwindow-1)
     window_end = min(gStart + window_size*iwindow, gEnd)
     if (iwindow == nwindow & window_end != gEnd) {
-      window_end = gEnd
+      window_end <- gEnd
     }
     
     # Skip a window if no need to estimate ER due to all daytime; 
@@ -115,7 +115,18 @@ for (i in 1:length(files)) {
     id <- which(between(night_pattern$DOY, window_start, window_end) & night_pattern$TSp > 1.0)
     if ( length(id) == 0 ) { next }
     #
-    data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end))
+    # extend the range to get TS~ER curve, because we need to predict for warming future
+    TS_window_current <- mean(night_pattern$TSp[between(night_pattern$DOY, window_start, window_end)], na.rm=T)
+    TS_window_next <- mean(night_pattern$TSp[between(night_pattern$DOY, window_start+14, window_end+14)], na.rm=T) 
+    
+    if (!is.na(TS_window_current) & !is.na(TS_window_next)) {
+      if (TS_window_next > TS_window_current) {
+        data <- a_measure_night_complete %>% filter(between(DOY, window_start, window_end + 14))
+      } else {
+        data <- a_measure_night_complete %>% filter(between(DOY, window_start-14, window_end))
+      }      
+    }
+    
     # if not enough observed data, extend the window to get more observations. 
     extend_days <- 0
     while(nrow(data) < 100) {
@@ -178,7 +189,7 @@ for (i in 1:length(files)) {
   acclimation$NEE_night_mod_fa[iacclimation] <- NEE_gs * exp(acclimation$TAS_tot[iacclimation] * acclimation$TSmin_c_gs[iacclimation])
 }
 #
-write.csv(acclimation, file='data/acclimation_data_future.csv', row.names = F)
+write.csv(acclimation, file='data/acclimation_data_future_ssp245.csv', row.names = F)
 
 # Overall effects: 0.2259778 / 0.2370858
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))

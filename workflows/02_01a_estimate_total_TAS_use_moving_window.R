@@ -14,8 +14,7 @@ rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
-dir_rawdata <- '/Users/jw2946/Documents/stability_project/data_server/'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv('data/site_info.csv')
@@ -33,6 +32,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
 for (id in 1:nrow(site_info)) {
+# for (id in 23:25) {
   # id = 25
   print(id)
   name_site <- site_info$site_ID[id]
