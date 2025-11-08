@@ -1,6 +1,6 @@
 ﻿site_ID,LAT,LONG,ELEV,IGBP,Climate_class,MAP,source,overlap,estimate_Ts,year_removed,NEE,FC,TA,TS,SWC,SW_IN,USTAR,RH,VPD,comment,gStart,gEnd,SWC_use
 US-Uaf,64.8663,-147.8555,155,ENF,Dwc,263,AmeriFlux_BASE,,NO,,FC + SC_PI_F,,TA_PI_F_1_1_1,TS_PI_F_1_1_1,SWC_PI_F_1_1_1,SW_IN_PI_F,USTAR,RH_1_1_1,,2006 has abnormal TS; 2003 has not SWC,,,YES
-CA-Ca3,49.5346,-124.9004,171,ENF,Cfb,1676,AmeriFlux_BASE,,YES,,FC + SC,,T_SONIC,TS_PI_F_1,SWC_PI_F_1,SW_IN_1_1_2,USTAR,RH_PI_F_1,,,,,NO
+CA-Ca3,49.5346,-124.9004,171,ENF,Cfb,1676,AmeriFlux_BASE,,NO,,FC + SC,,T_SONIC,TS_1_1_1,SWC_PI_F_1,SW_IN_1_1_2,USTAR,RH_PI_F_1,,,,,NO
 CA-Cbo,44.3167,-79.9333,120,DBF,Dfb,876.34,AmeriFlux_FLUXNET,,NO,,FC + SC,,TA_2_1_1,TS_2_1_1,SWC_2_1_1,PPFD_IN_1_2_1,USTAR,RH_1_3_1,,"2003 has no SWC data; earlier year do not have adequant soil Temperature (1996, 2000, 2003); remove bad performance years (2007) improve model results ",,,YES
 US-Ha1,42.5378,-72.1715,340,DBF,Dfb,1071,AmeriFlux_BASE,,YES,2010,FC_1_1_1  +  SC,,TA_PI_F_1_1_1,TS_PI_1_1_A,SWC_7_1_1,PPFD_IN_PI_F_1_1_1 ,USTAR,RH_PI_F_1_1_1,,2010 too noisy data,,,NO
 US-Ha2,42.5393,-72.1779,360,ENF,Dfb,1071,AmeriFlux_BASE,,NO,"2007, 2009, 2014",FC_A_1_1,,TA_A_1_1,TS_PI_1,,PPFD_IN_A_1_1,USTAR_A_1_1,RH_A_1_1,,"2014 too noisy, 2009 false data, 2007 large gaps not identified by methods",,,NO
@@ -12,7 +12,7 @@ US-SRM,31.8214,-110.8661,1120,WSA,Bsk,380,AmeriFlux_FLUXNET,,NO,,FC,,TA_1_1_1,TS
 US-CMW,31.6637,-110.1777,1199,DBF,Bsh,288,AmeriFlux_BASE,,NO,,NEE_PI,FC,TA_1_1_1,TS_1_1_1,SWC_PI_1_1_A,SW_IN,USTAR,RH_1_1_1,,,,,YES
 US-Ho1,45.2041,-68.7402,60,ENF,Dfb,1070,AmeriFlux_FLUXNET,,YES,,NEE_PI_1_1_1,FC_1_1_1,T_SONIC_1_1_1,TS_2_1_1,,PPFD_IN_1_1_1,USTAR_1_1_1,RH_PI_F_2_1_1,,,,,NO
 US-Ho2,45.2091,-68.747,61,ENF,Dfb,1064,AmeriFlux_FLUXNET,,YES,,NEE_PI_1_1_1,FC_1_1_1,T_SONIC_1_1_1,TS_1_1_1,,PPFD_IN_1_1_1,USTAR_1_1_1,RH_PI_F_2_1_1,,,,,NO
-US-GLE,41.3665,-106.2399,3197,ENF,Dfc,1200,AmeriFlux_FLUXNET,,YES,"2008:2009, 2017",FC_1_1_1 + SC_1_1_1,,TA_PI_F_1_1_1,TS_1_1_2,SWC_1_1_1,SW_IN_PI_F_1_1_1,USTAR_PI_F_1_1_1,,VPD_PI_1_1_1,bark beetle in 2008-2009 and not enough data in 2017,,,NO
+US-GLE,41.3665,-106.2399,3197,ENF,Dfc,1200,AmeriFlux_FLUXNET,,NO,"2008:2009, 2017",FC_1_1_1 + SC_1_1_1,,TA_PI_F_1_1_1,TS_1_1_2,SWC_1_1_1,SW_IN_PI_F_1_1_1,USTAR_PI_F_1_1_1,,VPD_PI_1_1_1,TS measurement may has problem before July,182,,NO
 US-Me2,44.4526,-121.5589,1253,ENF,Csb,523,AmeriFlux_FLUXNET,,NO,"2008, 2013:2015",NEE_PI_F,FC,TA_1_1_1,TS_1_1_1,SWC_1_1_1,SW_IN,USTAR,RH,,"2008 not enough data, 2013-2014 too noise data",,,NO
 US-NR1,40.0329,-105.5464,3050,ENF,Dfc,800,AmeriFlux_FLUXNET,,NO,"2003, 2012",FC_1_1_1 + SC_PI_F_1_1_1,,TA_1_1_1,TS_1_1_1,SWC_1_1_1,SW_IN_PI_F_1_1_1,USTAR_PI_F_1_1_1,RH_PI_F_1_1_1,,"the first 3 year has not SWC; 2003 noisy and gap data (1999:2001, 2003, 2012); 2012 has high TS-ER curve, likely due to very low swc (drought), key year affect result",,,YES
 US-WCr,45.8059,-90.0799,520,DBF,Dfb,787,AmeriFlux_BASE,,NO,"2021, 2022",FC_1_1_1 + SC_PI_F_1_1_1,,TA_1_1_1,TS_PI_F_1_1_1,SWC_1_2_1,SW_IN,USTAR_PI_F_1_1_1,,VPD_PI_1_1_1,super noisy data in 2021 and 2022,,,YES

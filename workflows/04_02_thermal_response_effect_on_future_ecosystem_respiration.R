@@ -2,7 +2,7 @@
 # Authors: Junna Wang, October, 2025
 
 # This script takes 5 min to run if we use gslnls, and takes 9 hours to run if we use brms to estimate model parameters. 
-# their results are almost the same, so we use gslnls. 
+# their results isnot the same, gslnls is too sensitive to outliers, we have to use brms. 
 
 library(librarian)
 shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls)
@@ -39,7 +39,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
-frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
+frmu <- NEE ~ exp(alpha * TS - beta*TS^2) * C0
 param <- alpha+beta+C0 ~ 1
 priors <- priors_temp
 
@@ -143,7 +143,7 @@ for (i in 1:length(files)) {
     # 
     # df_accurate <- data.frame(NEE=data$NEE, TS=data$TS)
     # NEE_pred <- fitted(mod, newdata=df_accurate)[, "Estimate"]
-    # # plot(df_accurate$TS, df_accurate$NEE)
+    # plot(df_accurate$TS, df_accurate$NEE)
     # ER_obs_pred <- rbind(ER_obs_pred, data.frame(pred=NEE_pred, obs=df_accurate$NEE))
     # 
     # df_present <- data.frame(TS=night_pattern$TSp[id])
@@ -154,16 +154,22 @@ for (i in 1:length(files)) {
     
     #----------------------------------------------------------------------------------------------------------
     # Alternative model to estimate parameters, this method is fast, but need more data to get reliable results.
-    frmu   <- NEE ~ C_pool * exp(alpha * TS + beta*TS^2)
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS + beta*TS^2) * C0
     if (name_site=='ZA-Kru') {
-      stprm  <- c(C_pool=10, alpha=0.1, beta=-0.01)
+      stprm  <- c(C0=10, alpha_ln=-2.302585, beta=-0.01)
+    } else if (name_site=='CZ-RAJ') {
+      stprm  <- c(C0=10, alpha_ln=-2.813411, beta=-0.01)
+    } else if (name_site=='US-CMW') {
+      stprm  <- c(C0=1, alpha_ln=-2.0524706, beta=-0.001)
     } else {
-      stprm  <- c(C_pool=1, alpha=0.1, beta=-0.001)
+      stprm  <- c(C0=1, alpha_ln=-2.302585, beta=-0.001)
     }
     df_accurate <- data.frame(NEE=data$NEE, TS=data$TS)
-    mod2 <- gsl_nls(fn=frmu, data=df_accurate, start=stprm)
+    mod2 <- gsl_nls(fn=frmu_nls, data=df_accurate, start=stprm)
+    print(summary(mod2))
+
     NEE_pred <- predict(mod2, newdata=df_accurate)
-    # plot(df_accurate$TS, df_accurate$NEE, main = paste0(name_site, iwindow))
+    plot(df_accurate$TS, df_accurate$NEE, main = paste0(name_site, iwindow))
     ER_obs_pred <- rbind(ER_obs_pred, data.frame(pred=NEE_pred, obs=df_accurate$NEE))
     #
     # predict current night respiration

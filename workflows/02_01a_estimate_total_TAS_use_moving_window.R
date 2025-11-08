@@ -196,6 +196,7 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window[icount, 5] <- extend_days
       
       if (nrow(data_subset) <= nobs_threshold) { next }
+      if (name_site == 'US-GLE' & iyear == 2011 & window_start < 192) { next }  # TS measurement is inaccurate during this period of this year. 
         
       mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
