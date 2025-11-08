@@ -75,7 +75,7 @@ id_estimate_TS <- which(site_info$estimate_Ts == 'YES')
 
 
 for (id in id_estimate_TS) {
-  # id <- id_estimate_TS[13]
+  # id <- id_estimate_TS[4]
   name_site <- site_info$site_ID[id]
   
   if (site_info$source[id] %in% c("AmeriFlux_BASE", "AmeriFlux_FLUXNET")) {
@@ -88,7 +88,7 @@ for (id in id_estimate_TS) {
       data$NETRAD <- a$NETRAD
     } else if (name_site %in% c("US-Ho1")) {
       data$NETRAD <- a$NETRAD_2_1_1
-    }
+    } 
   } else {
     data_source <- site_info$source[id]
     data_source <- unlist(strsplit(data_source, "_"))
@@ -149,6 +149,7 @@ for (id in id_estimate_TS) {
   if (sum(is.na(data$TA)) > 0) {
     data$TA[is.na(data$TA)] <- data$TA_gf[is.na(data$TA)]
   }
+
   plot(data$TA)
   
   # gap fill NETRAD if using NETRAD method
@@ -171,15 +172,11 @@ for (id in id_estimate_TS) {
     # use simple linear regression because these sites have 1-year or two-year TS, and NETRAD is incomplete
     lm <- lm(data=data, TS ~ TA + NETRAD)
     data$TS_pred <- predict(lm, data)
-  } else if (name_site %in% c("US-PFa")) {
-    # not netrad at this site
-    lm <- lm(data=data, TS ~ TA)
-    data$TS_pred <- predict(lm, data)
   } else {
-    # NETRAD is unavailable
-    use_NETRAD = FALSE
-    data <- predict_soil_temp(data, use_NETRAD)
-  }
+    # no netrad at this site
+    lm <- lm(data=data[data$TA>0, ], TS ~ TA)
+    data$TS_pred <- predict(lm, data)
+  } 
   plot(data$TS_pred)
   
   write.csv(data, file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')), row.names = F)
@@ -187,7 +184,7 @@ for (id in id_estimate_TS) {
 
 # all R2 should be higher than 0.83. 
 # check TS prediction quality
-# data <- readRDS("/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation/TS_RandomForest/US-Ha1_TS_rfp.RDS")
-# plot(data$TIMESTAMP, data$TS_pred)
+# data <- read.csv("/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation/TS_RandomForest/US-Ho2_TS_rfp.csv")
+# plot(ymd_hms(data$TIMESTAMP[140000:170000]), data$TS_pred[140000:170000])
 # data %>% group_by(year(TIMESTAMP)) %>% summarise(TS=mean(TS_pred, na.rm=T))
 # 
