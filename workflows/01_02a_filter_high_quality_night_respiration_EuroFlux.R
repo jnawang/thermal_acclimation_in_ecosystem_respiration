@@ -1,4 +1,4 @@
-# Purpose of this script: prepare for data for fitting temperature-respiration curves for EuroFlux sites. 
+# Purpose of this script: prepare data for fitting temperature-respiration curves for EuroFlux sites. 
 # Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
 #  It will take ~ 30 mins to finish running this script. 

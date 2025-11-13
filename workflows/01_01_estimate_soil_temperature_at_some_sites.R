@@ -1,8 +1,9 @@
-# title: Estimate Soil Temperature Based on Air Temp and net Radiation using Random Forests for 18 sites
+# title: Estimate Soil Temperature Based on Air Temp and net Radiation using Random Forests or linear regression for 16 sites
 
 #  Description
 #  this script intends to estimate surface soil temperature at sites with lots of missing soil temperature data
-#  the method is random forests for most sites, but we used linear regression for three sites ("DE-Hte", "FR-FBn", "US-PFa") due to limited (1-2 years) TS observations.
+#  the method is random forests for 8 sites ("DE-Akm", "FR-Pue", "US-Los", "US-SRG", "CA-Man", "US-Ced", "US-Ho1", "CZ-RAJ"), 
+#  but for the remaining sites, we used linear regression due to limited (1-2 years) TS observations or not enough observation of net radiation.
 #   
 #  Author: Junna Wang, July 2025
 #  It will take ~40 min to finish running this script. 

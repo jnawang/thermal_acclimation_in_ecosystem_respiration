@@ -19,6 +19,8 @@ files_AmeriFlux_BASE <- list.files(file.path(dir_rawdata, "SiteData", "AmeriFlux
 
 site_info <- read.csv('data/site_info.csv')
 
+outcome <- read.csv('data/outcome.csv')
+
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
 # put a for loop here; nrow(site_info)

@@ -1,4 +1,4 @@
-# This script estimates nighttime soil temperature change from the current (2000-2020) to the future (2041-2060). 
+# This script estimates monthly nighttime air temperature change from the current (2000-2020) to the future (2041-2060). 
 # Authors: Junna Wang, October, 2025
 
 # This script needs to read data stored on data server. 

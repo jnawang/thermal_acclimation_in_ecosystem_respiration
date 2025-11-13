@@ -1,7 +1,7 @@
 # This script identifies drivers of apparent and actual thermal response strength
 # Authors: Junna Wang, October, 2025
 
-# It takes 3min to run this script. 
+# It takes 10min to run this script. 
 
 library(librarian)
 shelf(dplyr, ggplot2, corrplot, MuMIn, fBasics, car, lme4, vip, randomForest, caret, VSURF, rsample)
@@ -72,28 +72,13 @@ acclimation$TAS_app <- acclimation$TAS_tot - acclimation$TAS
 # but mean TAS_total (0.02209273) is mostly (70%) contributed by TAS_app (-0.0167761);
 
 #----------------------------try simple linear regression-----------------------
-summary(lm(data=acclimation, TAS ~ MATA + ELEV + GPP + SOC))          # Only productivity is most important. 
-summary(lm(data=acclimation, TAS_tot ~ MATA + ELEV + GPP + SOC))      # The first 3 are all important. 
-
-# options(na.action = na.omit)
-# TAS_tot_data <- acclimation[, c(4, 7:20)]
-# model <- lm(TAS_tot ~ ., data = TAS_tot_data)   # climate class is strongly correlated to MATA [,-c()]
-# summary(model)
-# dredge(model)
-# # Elevation, MAT, GPP, and vegetation index
-# 
-# 
-# TAS_data <- acclimation[, c(4, 7:19, 22)]
-# model <- lm(TAS ~ ., data = TAS_data)   # climate class is strongly correlated to MATA [,-c()]
-# summary(model)
-# dredge(model)
-# # GPP 
+summary(lm(data=acclimation, TAS ~ MATA + ELEV + LAI + SOC))          # Only productivity is most important. 
+summary(lm(data=acclimation, TAS_tot ~ MATA + ELEV + LAI + SOC))      # The first 3 are all important. 
 
 #-------------------------------------------------------------------------------
 #----------------------try random forests, used in manuscript-------------------
 set.seed(222)
 data_TAS <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC")]
-data_TAS_tot <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC")]
 
 # calculate vif of the four predictors
 lm_model <- lm(data=data_TAS, TAS ~ .)
@@ -105,8 +90,8 @@ car::vif(lm_model)
 # stratify the data, and create folds
 acclimation$Climate_reclass <- acclimation$Climate_class
 acclimation$Climate_reclass[acclimation$Climate_class %in% c("Bwk", "Csa")] <- 'arid_hot_med'
-acclimation$Climate_reclass[acclimation$Climate_class %in% c("Bsk", "Bsh", "Csb")] <- 'semi_arid_warm_med'
-acclimation$Climate_reclass[acclimation$Climate_class %in% c("Am", "Cfa", "Cfb", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc")] <- 'humid'
+acclimation$Climate_reclass[acclimation$Climate_class %in% c("Bsk", "Bsh", "Csb", "Bwk")] <- 'semi_arid_warm_med'
+acclimation$Climate_reclass[acclimation$Climate_class %in% c("Am", "Cfa", "Cfb", "Cfc", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc")] <- 'humid'
 # create folds
 k_folds <- 5
 folds <- createFolds(acclimation$Climate_reclass, k = k_folds, list = TRUE, returnTrain = FALSE)
@@ -141,7 +126,7 @@ plot(perf[,4])
 plot(perf[,5])
 plot(perf[,6])
 #
-################################################### 
+##############################
 # This is another way to set up cross-validation; but it can only tell the proper mtry. 
 train_control <- trainControl(method = "cv",  # Cross-validation
                               number = 5)    # Number of folds
@@ -152,13 +137,19 @@ print(rf0)
 rf0$bestTune    # mtry = 2
 rf0$results
 
-#####the model to use, with bootstrapping
+
+#####the model to use in manuscript, with bootstrapping
+varImp_output <- data.frame(TRS_type = character(), var = character(), varImp = double())
+#                          # low025 = double(), low050 = double(), med500 = double(), high950 = double(), high975 = double())
+###########################################################For direct TAS###########################################################
 library(rsample)
-data_strat <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC", "Climate_reclass")]
-strat_bootstrap <- bootstraps(data_strat, times = 200, strata = "Climate_reclass")
-# This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
+acclimation$climate_vegetation <- paste0(acclimation$Climate_class, '_', acclimation$IGBP)
+data_strat <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC", "climate_vegetation")]
+strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetation)
+# strat_bootstrap <- bootstraps(data_strat, times = 200, apparent = FALSE)
+# This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])  
 # Access the first bootstrap sample
-varImp  <- data.frame(elev=double(), mat=double(), lai=double(), ph=double())
+varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
 partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
 partial[1:51, 1]    <- "elev"
 partial[52:102, 1]  <- "mat"
@@ -170,8 +161,8 @@ for (i in 1:200) {
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
   rf <- randomForest(formula = TAS ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
-  varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
+  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
+  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
@@ -188,15 +179,6 @@ for (i in 1:200) {
   matrix.boot[103:153, i] <- tmp3$y
   matrix.boot[154:204, i] <- tmp4$y
 }
-# confidence interval of RI; the three are almost equally important
-for (i in 1:4) {
-  print(quantile(varImp[,i], c(0.025, 0.05, 0.5, 0.95, 0.975)))
-}
-#       2.5%        5%       50%       95%     97.5% 
-# ele: 0.1886710 0.2129134 0.2940669 0.3742908 0.3956409  (1)
-# mat: 0.1453366 0.1549683 0.2172829 0.2881334 0.2987378  (3)
-# lai: 0.2187312 0.2311713 0.2988688 0.3824310 0.4117751  (2) 
-# soc: 0.1053378 0.1169086 0.1846725 0.2545087 0.2620789  (4)
 
 # confidence interval of bootstrap
 for (i in 1:204) {
@@ -214,27 +196,33 @@ plot(partial$x[52:102], partial$y[52:102])
 plot(partial$x[103:153], partial$y[103:153])
 plot(partial$x[154:204], partial$y[154:204])
 #
-write.csv(partial, 'data/partial_dependence_direct_TAS.csv', row.names = F)
+
+partial_output <- data.frame(TRS_type = 'TAS_direct', partial)
+# write.csv(partial, 'data/partial_dependence_direct_TAS.csv', row.names = F)
 #
-#################################################################################################
+#########################################################
 ####the last one best model for estimating direct TAS
-data <- acclimation[, c("TAS",  "LAI", "ELEV")]   #
+data <- acclimation[, c("TAS", "ELEV", "MATA", "LAI", "SOC")]   # 
 rf0 <- randomForest(formula = TAS ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)
 print(rf0)
 y0  <- predict(rf0, data) 
 print(postResample(pred=y0,  obs=data$TAS))
-#       RMSE   Rsquared        MAE 
-# 0.03404003 0.35585143 0.02505136 
+# RMSE   Rsquared        MAE 
+# 0.03188386 0.48940222 0.02354255
 #
 partialPlot(rf0, pred.data=data, x.var="ELEV")
 partialPlot(rf0, pred.data=data, x.var="LAI")
 #
+importance(rf0, type=1, scale=TRUE)
 varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
+varImp_output[1:4, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[1:4, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[1:4, 1] <- 'TAS_direct'
 
-#------------------------------------------------------------------------------------------------
+###########################################################For total TAS###########################################################
 ####the last one best model for estimating total TAS
 data <- acclimation[, c("TAS_tot", "LAI", "ELEV", "MATA", "SOC")]   # "LAI" is slightly better than "GPP"
 rf0 <- randomForest(formula = TAS_tot ~ ., data=data, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)
@@ -252,13 +240,17 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
+varImp_output[5:8, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[5:8, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[5:8, 1] <- 'TAS_tot'
+
 #################################################################################################
 ####get confidence intervals of the partial plot for total TAS
-data_strat <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC", "Climate_reclass")]
-strat_bootstrap <- bootstraps(data_strat, times = 200, strata = "Climate_reclass")
+data_strat <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC", "climate_vegetation")] 
+strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetation)
 # This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
 # Access the first bootstrap sample
-varImp  <- data.frame(elev=double(), mat=double(), lai=double(), ph=double())
+varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
 partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
 partial[1:51, 1]    <- "elev"
 partial[52:102, 1]  <- "mat"
@@ -270,8 +262,8 @@ for (i in 1:200) {
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
   rf <- randomForest(formula = TAS_tot ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
-  varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
+  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
+  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
@@ -288,15 +280,6 @@ for (i in 1:200) {
   matrix.boot[103:153, i] <- tmp3$y
   matrix.boot[154:204, i] <- tmp4$y
 }
-# confidence interval of RI; the three are almost equally important
-for (i in 1:4) {
-  print(quantile(varImp[,i], c(0.025, 0.05, 0.5, 0.95, 0.975)))
-}
-#       2.5%        5%       50%       95%     97.5% 
-# ele: 0.1727310 0.1860557 0.2562286 0.3395613 0.3470166  (2)
-# mat: 0.1074919 0.1324391 0.2100684 0.2741180 0.2814814  (4)
-# lai: 0.2315998 0.2426750 0.2911777 0.3624669 0.3842809  (1) 
-# soc: 0.1536467 0.1698291 0.2390745 0.3021813 0.3246712  (3)
 
 # confidence interval of bootstrap
 for (i in 1:204) {
@@ -314,8 +297,7 @@ plot(partial$x[52:102], partial$y[52:102])
 plot(partial$x[103:153], partial$y[103:153])
 plot(partial$x[154:204], partial$y[154:204])
 #
-write.csv(partial, 'data/partial_dependence_total_TAS.csv', row.names = F)
-
+partial_output <- rbind(partial_output, data.frame(TRS_type = 'TAS_total', partial))
 
 ###------------------------------factors affecting apparent TAS-----------------
 data <- acclimation[, c("TAS_app", "LAI", "ELEV", "MATA", "SOC")]   # "LAI" is slightly better than "GPP"
@@ -333,4 +315,65 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
+varImp_output[9:12, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[9:12, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[9:12, 1] <- 'TAS_app'
 # this is opposite: MATA, SOC, and LAI are most important. 
+#################################################################################################
+####get confidence intervals of the partial plot for total TAS
+data_strat <- acclimation[, c("TAS_app", "ELEV", "MATA", "LAI", "SOC", "climate_vegetation")]
+strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetation)
+# This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
+# Access the first bootstrap sample
+varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
+partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
+partial[1:51, 1]    <- "elev"
+partial[52:102, 1]  <- "mat"
+partial[103:153, 1] <- "lai"
+partial[154:204, 1] <- "soc"
+matrix.boot <- matrix(0, nrow=204, ncol=200)
+for (i in 1:200) {
+  print(i)
+  data_sample <- analysis(strat_bootstrap$splits[[i]])
+  data_sample <- data_sample[, 1:5]
+  rf <- randomForest(formula = TAS_app ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
+  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
+  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
+  # partial plot values
+  tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
+  tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
+  tmp3 <- partialPlot(rf, pred.data=data, x.var="LAI", plot=FALSE)
+  tmp4 <- partialPlot(rf, pred.data=data, x.var="SOC", plot=FALSE)
+  if (i == 1) {
+    partial[1:51, 2]    <- tmp1$x
+    partial[52:102, 2]  <- tmp2$x
+    partial[103:153, 2] <- tmp3$x
+    partial[154:204, 2] <- tmp4$x
+  }
+  matrix.boot[1:51, i]    <- tmp1$y
+  matrix.boot[52:102, i]  <- tmp2$y
+  matrix.boot[103:153, i] <- tmp3$y
+  matrix.boot[154:204, i] <- tmp4$y
+}
+
+# confidence interval of bootstrap
+for (i in 1:204) {
+  partial[i, 3:7] <- quantile(matrix.boot[i,], c(0.025, 0.05, 0.5, 0.95, 0.975))
+}
+# standarize my x variable
+partial$x_norm   <- partial$x
+partial$x_norm[1:51] <- scale(partial$x[1:51])
+partial$x_norm[52:102] <- scale(partial$x[52:102])
+partial$x_norm[103:153] <- scale(partial$x[103:153])
+partial$x_norm[154:204] <- scale(partial$x[154:204])
+#
+plot(partial$x[1:51], partial$y[1:51])
+plot(partial$x[52:102], partial$y[52:102])
+plot(partial$x[103:153], partial$y[103:153])
+plot(partial$x[154:204], partial$y[154:204])
+#
+
+partial_output <- rbind(partial_output, data.frame(TRS_type = 'TAS_app', partial))
+
+write.csv(partial_output, 'data/partial_plot.csv', row.names = F)
+write.csv(varImp_output, 'data/varImp_plot.csv', row.names = F)
