@@ -149,7 +149,6 @@ strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetati
 # strat_bootstrap <- bootstraps(data_strat, times = 200, apparent = FALSE)
 # This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])  
 # Access the first bootstrap sample
-varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
 partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
 partial[1:51, 1]    <- "elev"
 partial[52:102, 1]  <- "mat"
@@ -161,8 +160,6 @@ for (i in 1:200) {
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
   rf <- randomForest(formula = TAS ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
-  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
@@ -213,13 +210,12 @@ print(postResample(pred=y0,  obs=data$TAS))
 partialPlot(rf0, pred.data=data, x.var="ELEV")
 partialPlot(rf0, pred.data=data, x.var="LAI")
 #
-importance(rf0, type=1, scale=TRUE)
 varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[1:4, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
-varImp_output[1:4, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[1:4, 3] <- randomForest::importance(rf0, type=1, scale=TRUE) / sum(randomForest::importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[1:4, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[1:4, 1] <- 'TAS_direct'
 
 ###########################################################For total TAS###########################################################
@@ -240,8 +236,8 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[5:8, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
-varImp_output[5:8, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[5:8, 3] <- randomForest::importance(rf0, type=1, scale=TRUE) / sum(randomForest::importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[5:8, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[5:8, 1] <- 'TAS_tot'
 
 #################################################################################################
@@ -250,7 +246,6 @@ data_strat <- acclimation[, c("TAS_tot", "ELEV", "MATA", "LAI", "SOC", "climate_
 strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetation)
 # This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
 # Access the first bootstrap sample
-varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
 partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
 partial[1:51, 1]    <- "elev"
 partial[52:102, 1]  <- "mat"
@@ -262,8 +257,6 @@ for (i in 1:200) {
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
   rf <- randomForest(formula = TAS_tot ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
-  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)
@@ -315,8 +308,8 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[9:12, 3] <- importance(rf0, type=1, scale=TRUE) / sum(importance(rf0, type=1, scale=TRUE)) * 100
-varImp_output[9:12, 2] <- rownames(importance(rf0, type=1, scale=TRUE))
+varImp_output[9:12, 3] <- randomForest::importance(rf0, type=1, scale=TRUE) / sum(randomForest::importance(rf0, type=1, scale=TRUE)) * 100
+varImp_output[9:12, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[9:12, 1] <- 'TAS_app'
 # this is opposite: MATA, SOC, and LAI are most important. 
 #################################################################################################
@@ -325,7 +318,6 @@ data_strat <- acclimation[, c("TAS_app", "ELEV", "MATA", "LAI", "SOC", "climate_
 strat_bootstrap <- bootstraps(data_strat, times = 200, strata = climate_vegetation)
 # This also gives the out of bag sampling using: first_oob <- assessment(strat_bootstrap$splits[[1]])
 # Access the first bootstrap sample
-varImp  <- data.frame(elev=double(), mat=double(), lai=double(), soc=double())
 partial <- data.frame(var=character(), x=double(), y025=double(), y050=double(), y=double(), y950=double(), y975=double())
 partial[1:51, 1]    <- "elev"
 partial[52:102, 1]  <- "mat"
@@ -337,8 +329,6 @@ for (i in 1:200) {
   data_sample <- analysis(strat_bootstrap$splits[[i]])
   data_sample <- data_sample[, 1:5]
   rf <- randomForest(formula = TAS_app ~ ., data=data_sample, do.trace=FALSE, mtry=1, nodesize=30, ntree=500, importance=TRUE)   # I have to add importance=TRUE here, to get type 1 RI values!
-  # Imp_tmp <- importance(rf, type=1, scale=TRUE)[1:4]    # use type I: permutation-based MSE reduction
-  # varImp[i, 1:4] <- Imp_tmp / sum(Imp_tmp)
   # partial plot values
   tmp1 <- partialPlot(rf, pred.data=data, x.var="ELEV", plot=FALSE)
   tmp2 <- partialPlot(rf, pred.data=data, x.var="MATA", plot=FALSE)

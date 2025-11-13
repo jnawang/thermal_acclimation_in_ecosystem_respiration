@@ -5,7 +5,7 @@
 # Spectral information is from NASA earth data. 
 # Elevation of DE-SfS is from 5-m global elevation map and elevation of other sites are from PI.
 
-# this script takes 2-3 mins to run. 
+# this script takes 5 mins to run. 
 
 library(librarian)
 shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
@@ -39,7 +39,7 @@ stat.soil$GSOC <- terra::extract(GSOCmap, xy)$GSOCmap1.5.0
 # Compare these field data with map data, why I did not think of this method?
 tmp <- BIF.site %>% left_join(stat.soil, by=c('SITE_ID'='site_ID'))
 cor.test(tmp$soc_obs, tmp$GSOC)  # p-value = 0.034, r = 0.417
-plot(tmp$soc_obs, tmp$GSOC)
+# plot(tmp$soc_obs, tmp$GSOC)
 
 # I need to do some corrections for GSOC
 model <- lm(data=tmp, GSOC ~ soc_obs)

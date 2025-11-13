@@ -19,7 +19,7 @@ feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 #
-outcome <- read.csv("data/outcome_temp_water_gpp_old.csv")
+outcome <- read.csv("data/outcome_temp_water_gpp.csv")
 #
 acclimation <- read.csv("data/acclimation_data.csv")
 #
