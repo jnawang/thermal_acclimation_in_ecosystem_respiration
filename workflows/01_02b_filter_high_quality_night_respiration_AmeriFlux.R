@@ -116,7 +116,7 @@ for (id in 1:nrow(site_info)) {
     a_BZF[a_BZF==-9999] <- NA
     df <- data.frame(BZS = a$TA_PI_F[between(a$YEAR, 2016, 2019)], BZF = a_BZF$TA_PI_F[between(a_BZF$YEAR, 2016, 2019)])
     mod <- lm(data=df, BZS ~ BZF)
-    a$TA_PI_F[between(a$YEAR, 2012, 2014)] <- predict(mod, newdata = a_BZF$TA_PI_F[between(a_BZF$YEAR, 2012, 2014)])
+    a$TA_PI_F[between(a$YEAR, 2012, 2014)] <- predict(mod, newdata = data.frame(BZF = a_BZF$TA_PI_F[between(a_BZF$YEAR, 2012, 2014)]))
   } 
   ######################################decide which variables to use#######################################
   # modify the dataframe ac
