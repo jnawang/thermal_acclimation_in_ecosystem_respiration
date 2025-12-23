@@ -18,7 +18,6 @@ dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimatio
 
 files_FLUXNET2015  <- list.files(path=file.path(dir_rawdata, 'SiteData', 'FLUXNET2015', "unzip"), pattern = "_FLUXNET2015_FULLSET_(HH|HR)_", full.names = TRUE)
 files_FLUXNET2020  <- list.files(path=file.path(dir_rawdata, 'SiteData', 'FLUXNET2020', "unzip"), pattern = "_FLUXNET2015_FULLSET_(HH|HR)_", full.names = TRUE)
-files_ICOS_after2020 <- list.files(path=file.path(dir_rawdata, 'SiteData', 'ICOS_after2020'), pattern = ".csv$", full.names = TRUE)
 #
 files_FLUXNET2025 <- list.files(file.path(dir_rawdata, "SiteData", "FLUXNET07202025", "unzip"), pattern=".csv$", full.names = T)
 files_ICOS2025 <- list.files(file.path(dir_rawdata, "SiteData", "Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1", "unzip"), pattern=".csv$", full.names = T)
@@ -33,7 +32,7 @@ for (id in 1:nrow(site_info)) {
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
-  if (data_source %in% c("AmeriFlux_BASE", "AmeriFlux_FLUXNET")) {
+  if (data_source %in% c("AmeriFlux_BASE")) {
     next
   }
   
@@ -47,8 +46,6 @@ for (id in 1:nrow(site_info)) {
       files <- files_FLUXNET2015
     } else if (data_source[isource] == "FLUXNET2020") {
       files <- files_FLUXNET2020
-    } else if (data_source[isource] == "ICOS2020") {
-      files <- files_ICOS_after2020
     } else if (data_source[isource] == "FLUXNET2025") {
       files <- files_FLUXNET2025
     } else if (data_source[isource] == "ICOS2025") {

@@ -29,7 +29,7 @@ for (id in 1:nrow(site_info)) {
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
-  if (!data_source %in% c("AmeriFlux_BASE", "AmeriFlux_FLUXNET")) {
+  if (!data_source %in% c("AmeriFlux_BASE")) {
     next
   }
   
