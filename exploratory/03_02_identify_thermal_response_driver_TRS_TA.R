@@ -8,7 +8,10 @@ shelf(dplyr, ggplot2, corrplot, MuMIn, fBasics, car, lme4, vip, randomForest, ca
 rm(list=ls())
 
 #
-acclimation <- read.csv(file.path('data', 'acclimation_data.csv'))
+acclimation <- read.csv('data/acclimation_data_TA.csv')
+
+acclimation <- acclimation %>% filter(!site_ID %in% c('IT-Lav', "IT-TrF")) # The two sites night NEE has problems. 
+
 #------------------------do some explorations first-----------------------------
 summary(lm(data=acclimation, TAS ~ IGBP))
 summary(lm(data=acclimation, TAS ~ Climate_class))
@@ -22,7 +25,7 @@ summary(lm(data=acclimation, TAS_tot ~ Climate_class))
 # Do I want to combine climate and vegetation groups?
 # combine climate class
 table(acclimation$Climate_class)
-# tropical (Am, Af, n=3)
+# tropical (Am, n=1)
 # semi-arid (Bs, n = 8)
 # arid (Bw, n = 1)
 # hot summer Mediterranean (Csa, n = 10)
@@ -44,9 +47,7 @@ acclimation <- acclimation %>% mutate(Climate_class_new = case_when(Climate_clas
                                                                     Climate_class %in% c("Csb") ~ 'Csb',
                                                                     Climate_class %in% c("Dfa", "Dfb") ~ 'Df',
                                                                     Climate_class %in% c("Dfc, Dfd", "Dwc") ~ 'Subartic',
-                                                                    Climate_class %in% c("ET") ~ 'ET',
-                                                                    Climate_class %in% c("Af") ~ 'Af',
-                                                                    Climate_class %in% c("Am") ~ 'Am')) %>%
+                                                                    Climate_class %in% c("ET") ~ 'ET')) %>%
   mutate(IGBP_new = case_when(IGBP %in% c("CSH") ~ 'CSH', IGBP %in% c("DBF") ~ 'DBF', IGBP %in% c("EBF") ~ 'EBF',
                               IGBP %in% c("ENF") ~ 'ENF', IGBP %in% c("GRA") ~ 'GRA', IGBP %in% c("MF") ~ 'MF',
                               IGBP %in% c("OSH") ~ 'OSH', IGBP %in% c("SAV", "WSA") ~ 'SAV', IGBP %in% c("WET") ~ 'WET'))
@@ -380,5 +381,5 @@ plot(partial$x[154:204], partial$y[154:204])
 
 partial_output <- rbind(partial_output, data.frame(TRS_type = 'TAS_app', partial))
 
-write.csv(partial_output, file = file.path('data', 'partial_plot.csv'), row.names = F)
-write.csv(varImp_output, file = file.path('data', 'varImp_plot.csv'), row.names = F)
+write.csv(partial_output, 'plot_paper/partial_plot_TA.csv', row.names = F)
+write.csv(varImp_output, 'plot_paper/varImp_plot_TA.csv', row.names = F)

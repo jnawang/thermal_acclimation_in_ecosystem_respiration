@@ -60,7 +60,7 @@ predict_soil_temp <- function(data, use_NETRAD) {
 }
 
 #-------------Predict soil temperature for 9 Ameriflux sites using the function above
-site_info <- read.csv('data/site_info.csv')
+site_info <- read.csv(file.path('data', 'site_info.csv'))
 
 files_AmeriFlux_BASE <- list.files(file.path(dir_rawdata, "SiteData", "AmeriFlux_BASE"), pattern=".zip$", full.names = T)
 #

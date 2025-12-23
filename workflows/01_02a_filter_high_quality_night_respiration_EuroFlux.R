@@ -23,7 +23,7 @@ files_ICOS_after2020 <- list.files(path=file.path(dir_rawdata, 'SiteData', 'ICOS
 files_FLUXNET2025 <- list.files(file.path(dir_rawdata, "SiteData", "FLUXNET07202025", "unzip"), pattern=".csv$", full.names = T)
 files_ICOS2025 <- list.files(file.path(dir_rawdata, "SiteData", "Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1", "unzip"), pattern=".csv$", full.names = T)
 
-site_info <- read.csv('data/site_info.csv')
+site_info <- read.csv(file.path('data', 'site_info.csv'))
 
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
@@ -166,13 +166,13 @@ for (id in 1:nrow(site_info)) {
   
   
   # save TS~NEE curve
-  png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
-  par(mfrow = c(2, 2))
-  plot(a_measure_night_complete$TS_F_MDS_1, a_measure_night_complete$NEE_VUT_REF, main=name_site)
-  plot(NEE_yearly$DOY, NEE_yearly$NEE)
-  plot(NEE_yearly$DOY, NEE_yearly$TS)
-  plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
-  dev.off()
+  # png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
+  # par(mfrow = c(2, 2))
+  # plot(a_measure_night_complete$TS_F_MDS_1, a_measure_night_complete$NEE_VUT_REF, main=name_site)
+  # plot(NEE_yearly$DOY, NEE_yearly$NEE)
+  # plot(NEE_yearly$DOY, NEE_yearly$TS)
+  # plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
+  # dev.off()
   
   
   # I will use the mean of the first three values, and the mean of the last three values
@@ -313,6 +313,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # output growing season features
-write.csv(feature_gs, file='data/growing_season_feature_EuropFlux.csv', row.names = F)
+write.csv(feature_gs, file=file.path('data', 'growing_season_feature_EuropFlux.csv'), row.names = F)
 
 # Sys.time()

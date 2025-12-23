@@ -16,8 +16,8 @@ dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimatio
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
-site_info <- read.csv('data/site_info.csv')
-xy <- data.frame(x=site_info$LONG, y=site_info$LAT)  
+site_info <- read.csv(file.path('data', 'site_info.csv'))
+xy <- data.frame(x=site_info$LONG, y=site_info$LAT)
 
 #----------------Step 1: get monthly temperature of the current period
 # dir <- '/Users/jw2946/Documents/data/climate/wc2.1_2.5m_tmin/'
@@ -74,7 +74,7 @@ for (ssp in ssps) {
     Tmin_month[,i+1] <- as.vector(tapply(tmp[,i], rep(1:nrow(xy), times=5), mean, na.rm=T))
   }
   colnames(Tmin_month)[2:13] <- paste0('Tmin', 1:12)
-  write.csv(Tmin_month, file=paste0('data/Tmin_month_', ssp, '_wc.csv'), row.names=FALSE)
+  write.csv(Tmin_month, file=file.path('data', paste0('Tmin_month_', ssp, '_wc.csv')), row.names=FALSE)
   #
 }
 

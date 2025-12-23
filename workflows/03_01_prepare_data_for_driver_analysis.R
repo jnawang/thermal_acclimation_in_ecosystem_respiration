@@ -12,11 +12,11 @@ shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
-site_info <- read.csv('data/site_info.csv')
+site_info <- read.csv(file.path('data', 'site_info.csv'))
 
 #--------------------------------------------SOIL DATA-------------------------------------
 # get measured soil carbon data from AmeriFlux BIF data
@@ -36,9 +36,9 @@ xy <- data.frame(x=site_info$LONG, y=site_info$LAT)
 stat.soil$GSOC <- terra::extract(GSOCmap, xy)$GSOCmap1.5.0
 
 # check how GSOC data are good
-# Compare these field data with map data, why I did not think of this method?
+# Compare these field data with map data, why I did not think of this method? # 27 sites
 tmp <- BIF.site %>% left_join(stat.soil, by=c('SITE_ID'='site_ID'))
-cor.test(tmp$soc_obs, tmp$GSOC)  # p-value = 0.034, r = 0.417
+cor.test(tmp$soc_obs, tmp$GSOC)  # p-value = 0.02817, r = 0.4224124
 # plot(tmp$soc_obs, tmp$GSOC)
 
 # I need to do some corrections for GSOC
@@ -236,9 +236,9 @@ corrplot(cor(data.spectral.tower[, 2:9]),
 # LAI, GPP are strongly related to NEE_day; try to use this. 
 
 #--------------------------------combine soil, climate, spectral, and thermal response strength data together-------------
-data.TAS_tot <- read.csv('data/outcome_temp.csv')
+data.TAS_tot <- read.csv(file.path('data', 'outcome_temp.csv'))
 data.TAS_tot <- data.TAS_tot %>% rename("TAS_tot" = "TAS", "TAS_totp" = "TASp")
-data.TAS <- read.csv('data/outcome_temp_water_gpp.csv')
+data.TAS <- read.csv(file.path('data', 'outcome_temp_water_gpp.csv'))
 
 acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, 1:8], by = "site_ID") %>% 
   left_join(data.spectral[, c("ID", "EVI", "NDVI", "LAI", "GPP")], by=c("site_ID" = "ID")) %>% 
@@ -248,4 +248,4 @@ acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, 1:8], by = "site_ID
 
 #--------------------------------
 # output the data used for identify drivers of thermal acclimation
-write.csv(acclimation, 'data/acclimation_data.csv', row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data.csv'), row.names = F)

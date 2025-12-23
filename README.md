@@ -80,6 +80,8 @@
 -   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each flux file
 -   It is pre-required to run the workflow.
 
-3.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
+3.  cmdstanr should be installed in order to run some scripts in the *workflows* folder.
 
-4.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.
+4.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
+
+5.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.

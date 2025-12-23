@@ -15,15 +15,15 @@ dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimatio
 options(na.action = "na.omit")
 #
 # read data used for this module
-feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
-feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
+feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv'))
+feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 #
-outcome <- read.csv("data/outcome_temp_water_gpp.csv")
+outcome <- read.csv(file.path("data", "outcome_temp_water_gpp.csv"))
 #
-acclimation <- read.csv("data/acclimation_data.csv")
+acclimation <- read.csv(file.path("data", "acclimation_data.csv"))
 #
-Tmin_month <- read.csv('data/Tmin_month_ssp245_wc.csv')
+Tmin_month <- read.csv(file.path('data', 'Tmin_month_ssp245_wc.csv'))
 acclimation     <- acclimation %>% left_join(Tmin_month, by='site_ID')
 
 # add 6 column about respiration
@@ -191,9 +191,9 @@ for (i in 1:length(files)) {
   acclimation$NEE_night_mod_fa[iacclimation] <- NEE_gs * exp(acclimation$TAS_tot[iacclimation] * acclimation$TSmin_c_gs[iacclimation])
 }
 #
-write.csv(acclimation, file='data/acclimation_data_future_ssp245.csv', row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)
 
-# Overall effects: 0.1955976
+# 
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
 
 # if we only consider the sites with significant effects, the ratio is about 0.1974396

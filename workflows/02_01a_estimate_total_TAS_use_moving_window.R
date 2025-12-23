@@ -6,10 +6,11 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
-# it takes about 2 days to run through this script. 
+# it takes about 2 days to run through this script; but on other computers it could take one week, depending on number of cores used. 
+# please install 'cmdstanr' before you run this script. 
 
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
@@ -17,9 +18,9 @@ dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimatio
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
-site_info <- read.csv('data/site_info.csv')
-feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
-feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
+site_info <- read.csv(file.path('data', 'site_info.csv'))
+feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv'))
+feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 
 # outcome data frame
@@ -31,8 +32,13 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
+# Below are sites whose inter-annual TS was not strongly correlated to inter-annual TA, so use TA to obtain TS by linear regression. 
+site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod",
+                   "GF-Guy", "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
+                   "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
+                   "BE-Dor", "CA-TP4", "UK-AMo", "Ru-Fyo", "ZA-Kru", "IT-Tor")
+
 for (id in 1:nrow(site_info)) {
-# for (id in 23:25) {
   # id = 25
   print(id)
   name_site <- site_info$site_ID[id]
@@ -49,6 +55,15 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }
   
+  # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
+  if (name_site %in% site_TS_issue) {
+    mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
+    TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
+    a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
+    TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
+    ac$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
+  }
+ 
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
   if (ac$MINUTE[2] - ac$MINUTE[1] != 30) { dt = 60 }   # minutes 
@@ -281,6 +296,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, 'data/outcome_temp.csv', row.names = F)
-write.csv(outcome_siteyear, 'data/outcome_siteyear_temp.csv', row.names = F)
+write.csv(outcome, file = file.path('data', 'outcome_temp.csv'), row.names = F)
+write.csv(outcome_siteyear, file = file.path('data', 'outcome_siteyear_temp.csv'), row.names = F)
 

@@ -6,21 +6,20 @@
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
-# It takes about 2 days to finish the estimate of TAS; but on other computers it could take one week, depending on number of cores used.  
-# please install 'cmdstanr' before you run this script. 
+# It takes about 2 days to finish the estimate of TAS. 
 
 library(librarian)
 shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
-site_info <- read.csv(file.path('data', 'site_info.csv'))
-feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv'))
-feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
+site_info <- read.csv('data/site_info.csv')
+feature_gs <- read.csv('data/growing_season_feature_EuropFlux.csv')
+feature_gs_AmeriFlux <- read.csv('data/growing_season_feature_AmeriFlux.csv')
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 
 swc_ERA5 <- read.csv(file.path(dir_rawdata, "ERA5_daily_swc_1990_2024_allsites.csv"))
@@ -43,17 +42,24 @@ priors_water <- brms::prior("normal(10, 10)", nlpar = "Hs", lb = 0, ub = 1000)
 
 priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 
-# Below are sites whose inter-annual TS was not strongly correlated to inter-annual TA, so use TA to obtain TS by linear regression. 
-site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod",
-                   "GF-Guy", "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
-                   "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
-                   "BE-Dor", "CA-TP4", "UK-AMo", "Ru-Fyo", "ZA-Kru", "IT-Tor")
+# site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod", 
+#                    "GF-Guy", "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2", 
+#                    "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
+#                    "BE-Dor", "CA-TP4", "UK-AMo", "Ru-Fyo", "ZA-Kru", "IT-Tor")
+
+site_TS_issue <- c("BE-Dor", "CA-TP4", "UK-AMo", "Ru-Fyo", "ZA-Kru", "IT-Tor")
   
 for (id in 1:nrow(site_info)) {
+# for (id in 23:25) {
   # id = 27  # 1, 6, 77, 89, 64, 1:nrow(site_info)
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
+  
+  if (! name_site %in% site_TS_issue) {
+    next
+  }
+  
   
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
@@ -80,14 +86,15 @@ for (id in 1:nrow(site_info)) {
   }
   ###########################################
 
-  # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
-  if (name_site %in% site_TS_issue) {
-    mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
-    a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
-    ac$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
-  }
+  # use TS from simple regression.
+  mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
+  TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
+  a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
+  TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
+  ac$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
+  plot(ac$TS)
+  plot(ac$TA)
+  
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -337,6 +344,8 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, file = file.path('data', 'outcome_temp_water_gpp.csv'), row.names = F)
-write.csv(outcome_siteyear, file = file.path('data', 'outcome_siteyear_temp_water_gpp.csv'), row.names = F)
+write.csv(outcome, 'data/outcome_temp_water_gpp_TA_conversed.csv', row.names = F)
+write.csv(outcome_siteyear, 'data/outcome_siteyear_temp_water_gpp_TA_conversed.csv', row.names = F)
+
+
 

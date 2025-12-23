@@ -6,6 +6,7 @@
 # Special attention: 
 # SWC measurements of some old sites is every 4 hours, so these SWC data needs to interpolate. 
 # we added 6 more Ameriflux sites into the data in Aug. 2025
+# we added 2 more tropical Ameriflux sites into the data in Dec. 2025
 
 library(librarian)
 shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo)
@@ -13,19 +14,18 @@ rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
 dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 files_AmeriFlux_BASE <- list.files(file.path(dir_rawdata, "SiteData", "AmeriFlux_BASE"), pattern=".zip$", full.names = T)
 
-site_info <- read.csv('data/site_info.csv')
-
-outcome <- read.csv('data/outcome.csv')
+site_info <- read.csv(file.path('data', 'site_info.csv'))
 
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
-# put a for loop here; nrow(site_info)
+# put a for loop here
 for (id in 1:nrow(site_info)) {
-  # id = 14
+  # id = 114
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
@@ -45,6 +45,7 @@ for (id in 1:nrow(site_info)) {
     # combine TS data at two depth
     a$TS_2_1_1[is.na(a$TS_2_1_1)] <- a$TS_2_2_1[is.na(a$TS_2_1_1)] * 0.9324892 + 0.9077066
   }
+
   ######################################decide day or night for every TIMESTAMP#######################################
   # get site long and lat
   sites <- amf_site_info()
@@ -60,7 +61,7 @@ for (id in 1:nrow(site_info)) {
   }
   
   # get sunrise and sunset time
-  sunrise_set <- getSunlightTimes(
+    sunrise_set <- getSunlightTimes(
     date = seq.Date(as.Date(a$TIMESTAMP[1]), as.Date(a$TIMESTAMP[nrow(a)]), by = 1),       # Date format: YYYY-MM-DD
     keep = c("sunrise", "sunset"),
     lat = lat_site,
@@ -69,8 +70,16 @@ for (id in 1:nrow(site_info)) {
   )
   
   # Force the time zone to GMT in order to be consistent with the date format in AmeriFlux database
-  sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT')
-  sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT')
+  # also ensure each row represents the same date
+  sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT') + difftime(sunrise_set$date[1], as_date(sunrise_set$sunset[1]))
+  sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT') + difftime(sunrise_set$date[1], as_date(sunrise_set$sunset[1]))
+
+  # if in southern Hemisphere, so we need to change DOY values
+  southern_hemisphere = FALSE
+  if (name_site %in% c()) {
+    a$DOY[a$DOY < 183] <- a$DOY[a$DOY < 183] + 366
+    southern_hemisphere = TRUE
+  }
   
   # create ancillary df
   ac <- a[, 1:7]  
@@ -97,7 +106,18 @@ for (id in 1:nrow(site_info)) {
     a <- a %>% filter (YEAR > 1999)
     ac <- ac %>% filter (YEAR > 1999)
   }
-  
+  if (name_site == "US-Jo2") {
+    # TA data from 123453~124049 has problems use Tsonic data 
+    a$TA[123453:124049] <- a$T_SONIC[123453:124049] * 1.0183316 - 0.9299
+  }   
+  if (name_site == "US-BZS") {
+    # TA data in 2012-2014 is not accurate, so use nearby US-BZF's TA data.
+    a_BZF <- amf_read_base(files_AmeriFlux_BASE[grepl('US-BZF', files_AmeriFlux_BASE)], parse_timestamp=TRUE, unzip = T)
+    a_BZF[a_BZF==-9999] <- NA
+    df <- data.frame(BZS = a$TA_PI_F[between(a$YEAR, 2016, 2019)], BZF = a_BZF$TA_PI_F[between(a_BZF$YEAR, 2016, 2019)])
+    mod <- lm(data=df, BZS ~ BZF)
+    a$TA_PI_F[between(a$YEAR, 2012, 2014)] <- predict(mod, newdata = a_BZF$TA_PI_F[between(a_BZF$YEAR, 2012, 2014)])
+  } 
   ######################################decide which variables to use#######################################
   # modify the dataframe ac
   if ("DATE" %in% colnames(ac)) {
@@ -282,7 +302,9 @@ for (id in 1:nrow(site_info)) {
   #
   ac_u$season <- usCreateSeasonFactorYdayYear(
     ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min.
+  #
   uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+  
   # gap fill NEE, air temperature and soil temperature
   # By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
   # we can also use a different threshold for each of the defined seasons, by calling the two functions
@@ -326,18 +348,18 @@ for (id in 1:nrow(site_info)) {
   }
 
   # save site-specific TS~NEE curve
-  png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
-  par(mfrow = c(2, 2))
-  plot(a_measure_night_complete$TS, a_measure_night_complete$NEE, main=name_site)
-  plot(NEE_yearly$DOY, NEE_yearly$NEE)
-  plot(NEE_yearly$DOY, NEE_yearly$TS)
-  plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
-  dev.off()
+  # png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
+  # par(mfrow = c(2, 2))
+  # plot(a_measure_night_complete$TS, a_measure_night_complete$NEE, main=name_site)
+  # plot(NEE_yearly$DOY, NEE_yearly$NEE)
+  # plot(NEE_yearly$DOY, NEE_yearly$TS)
+  # plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
+  # dev.off()
   
   #########################################remove years with big gaps#######################################
   # max gap and total large gap threshold
-  if (name_site %in% c("US-ICt", "US-ICh", "US-ICs")) {
-    # use larger gap threshold because lack of data at these Tundra sites. 
+  if (name_site %in% c("US-ICt", "US-ICh", "US-ICs", "BR-Ma2", "BR-Sa1")) {
+    # use larger gap threshold because lack of data at these Tundra and tropical sites. 
     gap_max_thresh <- 60
     gap_total_thresh <- 0.8
   } else {
@@ -351,9 +373,17 @@ for (id in 1:nrow(site_info)) {
   yEnd   <- a_measure_night_complete$YEAR[nrow(a_measure_night_complete)]
 
   # adding the start and end of growing season date
-  a_gs_dates <- data.frame(TIMESTAMP = c(as.POSIXct((gStart - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC"),
-                                         as.POSIXct((gEnd - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC")),
-                           DOY = c(rep(gStart, yEnd - yStart + 1), rep(gEnd, yEnd - yStart + 1)))
+  if (southern_hemisphere) {
+    gStart_original <- ifelse(gStart > 366, gStart-366, gStart)
+    gEnd_original <- ifelse(gEnd > 366, gEnd-366, gEnd)
+    a_gs_dates <- data.frame(TIMESTAMP = c(as.POSIXct((gStart_original - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC"), 
+                                           as.POSIXct((gEnd_original - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC")), 
+                             DOY = c(rep(gStart, yEnd - yStart + 1), rep(gEnd, yEnd - yStart + 1)))
+  } else {
+    a_gs_dates <- data.frame(TIMESTAMP = c(as.POSIXct((gStart - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC"), 
+                                           as.POSIXct((gEnd - 1) * 86400 + as.numeric(dt/2, units = "secs"), origin = paste0(yStart:yEnd, "-01-01"), tz = "UTC")), 
+                             DOY = c(rep(gStart, yEnd - yStart + 1), rep(gEnd, yEnd - yStart + 1)))
+  } 
   a_check_gaps <- a_check_gaps %>% rbind(a_gs_dates) %>% unique %>% arrange(TIMESTAMP)
 
   good_years <- a_check_gaps %>%
@@ -445,4 +475,4 @@ for (id in 1:nrow(site_info)) {
 }
 
 # output growing season features
-write.csv(feature_gs, file='data/growing_season_feature_AmeriFlux.csv', row.names = F)
+write.csv(feature_gs, file=file.path('data', 'growing_season_feature_AmeriFlux.csv'), row.names = F)

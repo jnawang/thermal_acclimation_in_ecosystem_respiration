@@ -1,21 +1,17 @@
 # This scripts compare different thermal response strength (total, direct, indirect via water and GPP)
-# We also compare our estimated total thermal response strength with these from field experiments
-# Authors: Junna Wang, October, 2025
-
-# it takes 1 min to run. 
 
 library(librarian)
 shelf(dplyr, ggplot2, tidyr)
 rm(list=ls())
 
-outcome_temp <- read.csv(file.path('data', 'outcome_temp.csv'))
+acclimation <- read.csv('data/acclimation_data.csv')
 
-outcome_temp_water_gpp <- read.csv(file.path('data', 'outcome_temp_water_gpp.csv'))
+acclimation <- acclimation %>% filter(!site_ID %in% c('IT-Lav', "IT-TrF") )
 
-outcome <- data.frame(site_ID = outcome_temp$site_ID, TAS_tot = outcome_temp$TAS, TAS_totp = outcome_temp$TASp)
+outcome <- data.frame(site_ID = acclimation$site_ID, TAS_tot = acclimation$TAS_tot, TAS_totp = acclimation$TAS_totp)
 
-outcome$TAS <- outcome_temp_water_gpp$TAS
-outcome$TASp <- outcome_temp_water_gpp$TASp
+outcome$TAS <- acclimation$TAS
+outcome$TASp <- acclimation$TASp
 
 # outcome$TAS_water <- outcome_temp_gpp$TAS - outcome$TAS
 # outcome$TAS_gpp <- outcome_temp_water$TAS - outcome$TAS
@@ -29,16 +25,31 @@ outcome %>% tidyr::pivot_longer(col = c("TAS_tot", "TAS", "TAS_app"), names_to =
   geom_boxplot() +
   theme_bw()
   
-
-site_info <- read.csv(file.path('data', 'site_info.csv'))
+site_info <- read.csv('data/site_info.csv')
 if (!"IGBP" %in% names(outcome)) {
   outcome <- outcome %>% left_join(site_info[, c('site_ID', 'IGBP', 'Climate_class')], by = 'site_ID')
 }
 
-IGBPs <- unique(outcome$IGBP)
-Climate_classes <- unique(outcome$Climate_class)
+acclimation.enhance <- acclimation %>% filter(TAS_tot > 0 & TAS_totp < 0.05)
+acclimation.compensate <- acclimation %>% filter(TAS_tot < 0 & TAS_totp < 0.05)
+t.test(outcome$TAS_tot, mu = 0)
+t.test(outcome$TAS, mu = 0)
+t.test(outcome$TAS_app, mu = 0)
+sum(outcome$TAS_app < 0)
+sum(outcome$TAS < 0 & outcome$TASp < 0.05)
+sum(outcome$TAS > 0 & outcome$TASp < 0.05)
+#
+t.test(outcome$TAS_tot, outcome$TAS_app)
+#
+range(acclimation$TAS_tot)
+sd(acclimation$TAS_tot)
+mean(acclimation$TAS_tot)
 
-df.TAS.IGBP <- data.frame(IGBP = character(), n = integer(), total0 = double(), direct0 = double(), app0 = double())
+IGBPs <- unique(outcome$IGBP)
+
+df.TAS.IGBP <- data.frame(IGBP = character(), n = integer(), 
+                          totalp = double(), directp = double(), appp = double(),
+                          total0 = double(), direct0 = double(), app0 = double())
 for (i in 1:length(IGBPs)) {
   df.TAS.IGBP[i, 1] <- IGBPs[i]
   df.TAS.IGBP[i, 2] <- sum(outcome$IGBP == IGBPs[i])
@@ -46,22 +57,31 @@ for (i in 1:length(IGBPs)) {
     df.TAS.IGBP[i, 3] <- t.test(outcome$TAS_tot[outcome$IGBP == IGBPs[i]], mu=0)$p.value
     df.TAS.IGBP[i, 4] <- t.test(outcome$TAS[outcome$IGBP == IGBPs[i]], mu=0)$p.value
     df.TAS.IGBP[i, 5] <- t.test(outcome$TAS_app[outcome$IGBP == IGBPs[i]], mu=0)$p.value
+    df.TAS.IGBP[i, 6] <- t.test(outcome$TAS_tot[outcome$IGBP == IGBPs[i]], mu=0)$estimate
+    df.TAS.IGBP[i, 7] <- t.test(outcome$TAS[outcome$IGBP == IGBPs[i]], mu=0)$estimate
+    df.TAS.IGBP[i, 8] <- t.test(outcome$TAS_app[outcome$IGBP == IGBPs[i]], mu=0)$estimate
   }
 }
 
 t.test(outcome$TAS_tot[outcome$IGBP %in% c("OSH", "SAV", "WSA")], mu=0) # 0.01805551, p-value = 0.015
 t.test(outcome$TAS_tot[outcome$IGBP %in% c("GRA", "ENF")], mu=0) # 
 
-t.test(outcome$TAS_tot[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH", "WET")], mu=0)
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH")], mu=0)
+t.test(outcome$TAS_app[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH")], mu=0)
+t.test(outcome$TAS[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH")], mu=0)
+
 
 # broadleaf forests had trends for enhancing TAS. 
 t.test(outcome$TAS[outcome$IGBP %in% c("DBF", "EBF", "MF", "DNF", "CSH", "WET")], mu=0) # 0.01805551, p-value = 0.015
 
-t.test(outcome$TAS_app[outcome$IGBP %in% c("WET")], mu=0)  # -0.006572169, t = -1.7525, df = 13, p-value = 0.1032
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("WET")], mu=0)  # -0.006572169, t = -1.7525, df = 13, p-value = 0.1032
+t.test(outcome$TAS[outcome$IGBP %in% c("WET")], mu=0)  # -0.006572169, t = -1.7525, df = 13, p-value = 0.1032
 
 
-
-df.TAS.climate <- data.frame(climate = character(), n = integer(), total0 = double(), direct0 = double(), app0 = double())
+Climate_classes <- unique(outcome$Climate_class)
+df.TAS.climate <- data.frame(climate = character(), n = integer(), 
+                             totalp = double(), directp = double(), appp = double(),
+                             total0 = double(), direct0 = double(), app0 = double())
 for (i in 1:length(Climate_classes)) {
   df.TAS.climate[i, 1] <- Climate_classes[i]
   df.TAS.climate[i, 2] <- sum(outcome$Climate_class == Climate_classes[i])
@@ -69,19 +89,20 @@ for (i in 1:length(Climate_classes)) {
     df.TAS.climate[i, 3] <- t.test(outcome$TAS_tot[outcome$Climate_class == Climate_classes[i]], mu=0)$p.value
     df.TAS.climate[i, 4] <- t.test(outcome$TAS[outcome$Climate_class == Climate_classes[i]], mu=0)$p.value
     df.TAS.climate[i, 5] <- t.test(outcome$TAS_app[outcome$Climate_class == Climate_classes[i]], mu=0)$p.value
-  }
+    df.TAS.climate[i, 6] <- t.test(outcome$TAS_tot[outcome$Climate_class == Climate_classes[i]], mu=0)$estimate
+    df.TAS.climate[i, 7] <- t.test(outcome$TAS[outcome$Climate_class == Climate_classes[i]], mu=0)$estimate
+    df.TAS.climate[i, 8] <- t.test(outcome$TAS_app[outcome$Climate_class == Climate_classes[i]], mu=0)$estimate }
 }
 
-t.test(outcome$TAS[outcome$Climate_class %in% c("Csa")], mu=0)  # 0.02203213, p-value = 0.09531
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Bsh", "Bsk", "Bwk", "Csb")], mu=0)  # -0.08888042, p-value = 0.0001909
-
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Bsh", "Bsk", "Bwk")], mu=0)  # -0.08888042, p-value = 0.0001909
 
 # look at total response
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb")], mu=0)  # p-value = 0.09921
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Cfc")], mu=0)  # p-value = 0.09921
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Dfa", "Dfb")], mu=0)  # p-value = 0.06449
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Dfc", "Dfd", "Dwc")], mu=0)  # p-value = 0.2231
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc")], mu=0) 
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Csa")], mu=0)  # p-value = 0.09921
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Csa", "Csb")], mu=0)  # p-value = 0.09921
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Cfc", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc", "Csa", "Csb", "ET", "Am")], mu=0) 
 
 
 var(outcome$TAS_tot)

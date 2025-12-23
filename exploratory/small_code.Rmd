@@ -406,3 +406,41 @@ summary(lm(data = TAS, TAS_test ~ TAS))
 
 ```
 
+
+```{r check some sites}
+# check outcome results
+windows <- unique(outcome_siteyear$window)
+outcome_siteyear %>% filter(site_ID == 'BR-Sa1') %>% 
+  filter(extend_days < 80) %>% 
+  filter(window %in% windows[10:21]) %>% 
+  ggplot(aes(x=TS, y=lnRatio, col=window)) +
+    geom_point() +
+    geom_smooth(method = 'lm') +
+    ylim(c(-0.9, 0.9)) +
+    labs(title = outcome_siteyear$site_ID[nrow(outcome_siteyear)])
+
+df_site_year_window <- outcome_siteyear %>% filter(site_ID == 'BR-Sa1') %>% 
+  filter(extend_days < 80) %>%  filter(window %in% windows[10:21]) 
+summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
+
+```
+
+
+```{r }
+data2sites <- read.csv('/Users/junnawang/Downloads/ERA5L_daily_2sites_1990_2024.csv')
+dataAllsites <- read.csv('/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_allsites.csv')
+
+data2sites <- data2sites %>%
+  # rename('SWC' = 'soil_moisture') %>%
+  mutate(SWC = soil_moisture * 100)
+
+df <- rbind(dataAllsites, data2sites[, c('date', 'name', 'SWC')])
+
+plot(data2sites[data2sites$name == 'BR-Sa1', 'SWC'])
+plot(data2sites[data2sites$name == 'BR-Ma2', 'SWC'])
+
+write.csv(df, '/Users/junnawang/YaleLab/data_server/ERA5_daily_swc_1990_2024_allsites.csv' )
+
+
+```
+
