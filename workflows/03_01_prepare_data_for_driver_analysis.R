@@ -12,8 +12,8 @@ shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
