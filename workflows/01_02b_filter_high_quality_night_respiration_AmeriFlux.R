@@ -70,9 +70,11 @@ for (id in 1:nrow(site_info)) {
   )
   
   # Force the time zone to GMT in order to be consistent with the date format in AmeriFlux database
-  # also ensure each row represents the same date
-  sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT') + difftime(sunrise_set$date[1], as_date(sunrise_set$sunset[1]))
-  sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT') + difftime(sunrise_set$date[1], as_date(sunrise_set$sunset[1]))
+  # Find a day with estimated sunrise and sunset
+  iday_sun <- which(!is.na(sunrise_set$sunrise))[1]
+  # ensure each row represents the same date
+  sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT') + difftime(sunrise_set$date[iday_sun], as_date(sunrise_set$sunset[iday_sun]))
+  sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT') + difftime(sunrise_set$date[iday_sun], as_date(sunrise_set$sunset[iday_sun]))
 
   # if in southern Hemisphere, so we need to change DOY values
   southern_hemisphere = FALSE
