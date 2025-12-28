@@ -8,8 +8,8 @@ shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, l
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 options(na.action = "na.omit")
@@ -147,6 +147,7 @@ for (i in 1:length(files)) {
     mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                      prior = priors, data = data, iter = 2000, cores = 4, chains = 4, backend = "cmdstanr",
                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
+    summary(mod)
 
     df_accurate <- data.frame(NEE=data$NEE, TS=data$TS)
     NEE_pred <- fitted(mod, newdata=df_accurate)[, "Estimate"]
