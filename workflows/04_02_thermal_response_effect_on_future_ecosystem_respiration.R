@@ -8,8 +8,8 @@ shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, l
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 options(na.action = "na.omit")
@@ -47,7 +47,7 @@ priors <- priors_temp
 files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern = '_ac.csv$', full.names = FALSE)
 # air and soil temperature patterns
 # for (i in 1:length(files)) {
-for (i in 26:50) {
+for (i in 51:80) {
   ###
   # i = 74
   name_site <- substring(files[i], 1, 6)
@@ -183,7 +183,11 @@ for (i in 26:50) {
   acclimation$NEE_night_mod_fa[iacclimation] <- NEE_gs * exp(acclimation$TAS_tot[iacclimation] * acclimation$TSmin_c_gs[iacclimation])
 }
 #
+<<<<<<< HEAD
 write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_26_50.csv'), row.names = F)
+=======
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_51_80.csv'), row.names = F)
+>>>>>>> 0a4d52db0559a2b075d0d6758fadb3f09f2ce7c8
 
 # 
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
