@@ -1,15 +1,15 @@
 # This script estimates the effects of total thermal responses on future ecosystem respiration
 # Authors: Junna Wang, October, 2025
 
-# This script takes ~6 hours to run.
+# This script takes ~3 hours to run.
 
 library(librarian)
 shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 options(na.action = "na.omit")
@@ -46,7 +46,8 @@ priors <- priors_temp
 #
 files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern = '_ac.csv$', full.names = FALSE)
 # air and soil temperature patterns
-for (i in 1:length(files)) {
+# for (i in 1:length(files)) {
+for (i in 56:length(files)) {
   ###
   # i = 74
   name_site <- substring(files[i], 1, 6)
@@ -201,7 +202,7 @@ for (i in 1:length(files)) {
   acclimation$NEE_night_mod_fa[iacclimation] <- NEE_gs * exp(acclimation$TAS_tot[iacclimation] * acclimation$TSmin_c_gs[iacclimation])
 }
 #
-write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_56_110.csv'), row.names = F)
 
 # 
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
