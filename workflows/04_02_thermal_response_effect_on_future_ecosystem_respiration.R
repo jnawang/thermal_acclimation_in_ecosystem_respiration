@@ -48,7 +48,7 @@ files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern =
 # air and soil temperature patterns
 for (i in 1:length(files)) {
   ###
-  # i = 103
+  # i = 74
   name_site <- substring(files[i], 1, 6)
   print(paste0(i, name_site))
   #
@@ -59,12 +59,27 @@ for (i in 1:length(files)) {
   # use only the years with qualified data
   a_measure_night_complete <- read.csv(file.path(dir_rawdata, "RespirationData", paste0(name_site, "_nightNEE.csv")))
   good_years <- unique(a_measure_night_complete$YEAR)
+  # print(good_years)
   
+  #
+  gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
+  gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
   
-  ############I should use control year, and this control year should have enough data during every period. 
-  a_measure_night_complete_control <- a_measure_night_complete %>% filter(YEAR == outcome$control_year[outcome$site_ID == name_site])
-  # plot(make_datetime(a_measure_night_complete$YEAR, a_measure_night_complete$MONTH, a_measure_night_complete$DAY,
-  #                    a_measure_night_complete$HOUR, a_measure_night_complete$MINUTE), a_measure_night_complete$NEE, main = paste0(i, name_site))
+  ############I should use control year, and this control year should have enough data during every period#######
+  yearly_TSgs <- a_measure_night_complete %>% filter(between(DOY, gStart, gEnd)) %>% group_by(YEAR) %>% summarise(n = n(), TSgs=mean(TS))
+  yearly_TSgs <- yearly_TSgs %>% mutate(close_mean = abs(TSgs - median(yearly_TSgs$TSgs))) %>% arrange(close_mean)
+  control_year <- yearly_TSgs$YEAR[which(yearly_TSgs$n[1:3] == sort(yearly_TSgs$n[1:3])[2])]
+  # at some sites, the automatically selected years may not work the best, choose another year. 
+  if (name_site == 'AU-Tum') {
+    control_year = 2001
+  } else if (name_site == 'CA-Cbo') {
+    control_year = 2006
+  } else if (name_site == 'CH-Fru') {
+    control_year = 2008
+  }
+  # control_year = outcome$control_year[outcome$site_ID == name_site]
+  a_measure_night_complete_control <- a_measure_night_complete %>% filter(YEAR == control_year)
+  # plot(a_measure_night_complete$TS[a_measure_night_complete$YEAR == 2009], a_measure_night_complete$NEE[a_measure_night_complete$YEAR == 2009], main = paste0(i, name_site))
   
   # recalculate TS_TA relationship using TA threshold
   if (name_site!='GF-Guy') {
@@ -98,16 +113,10 @@ for (i in 1:length(files)) {
   #
   night_pattern$NEEp <- NA
   night_pattern$NEEf <- NA
-  #
-  gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
-  gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
+  
   
   # use uniform window size: 2 weeks
-  if (name_site %in% c("US-ICh", "US-ICt", "US-ICs")) {
-    window_size <- 28
-  } else {
-    window_size <- 14
-  }
+  window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
   nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)  
@@ -134,24 +143,24 @@ for (i in 1:length(files)) {
       nobs_threshold = 200
     }
     
-    # if not enough observed data in control year, use the average year and extend the window to get more observations. 
+    # if not enough observed data in control year, extend the window 
     extend_days <- 0
     while(nrow(data) < nobs_threshold) {
       extend_days <- extend_days + 7
-      data <- a_measure_night_complete %>% filter(between(DOY, window_start - extend_days, window_end + extend_days) & TS > 1.0)
+      data <- a_measure_night_complete_control %>% filter(between(DOY, window_start - extend_days, window_end + extend_days) & TS > 1.0)
       # some conditions to break out to avoid dead loop
       if (extend_days > (gEnd - gStart) / 2.0) {break}
     }
-    
+
     # call the brm model to estimate parameters; this step takes much longer time.
     mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                      prior = priors, data = data, iter = 2000, cores = 4, chains = 4, backend = "cmdstanr",
                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
-    summary(mod)
+    # print(summary(mod), digits = 4)
 
     df_accurate <- data.frame(NEE=data$NEE, TS=data$TS)
     NEE_pred <- fitted(mod, newdata=df_accurate)[, "Estimate"]
-    plot(df_accurate$TS, df_accurate$NEE, main = paste0(iwindow, name_site))
+    # plot(df_accurate$TS, df_accurate$NEE, main = paste0(iwindow, name_site))
     ER_obs_pred <- rbind(ER_obs_pred, data.frame(pred=NEE_pred, obs=df_accurate$NEE))
 
     df_present <- data.frame(TS=night_pattern$TSp[id])
