@@ -19,8 +19,6 @@ feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 #
-outcome <- read.csv(file.path("data", "outcome_temp_water_gpp.csv"))
-#
 acclimation <- read.csv(file.path("data", "acclimation_data.csv"))
 #
 Tmin_month <- read.csv(file.path('data', 'Tmin_month_ssp245_wc.csv'))
@@ -77,7 +75,13 @@ for (i in 56:length(files)) {
     control_year = 2006
   } else if (name_site == 'CH-Fru') {
     control_year = 2008
-  }
+  } else if (name_site == 'US-Wkg') {
+    control_year = 2008
+  } else if (name_site == 'ES-LJu') {
+    control_year = 2010
+  } 
+  
+  
   # control_year = outcome$control_year[outcome$site_ID == name_site]
   a_measure_night_complete_control <- a_measure_night_complete %>% filter(YEAR == control_year)
   # plot(a_measure_night_complete$TS[a_measure_night_complete$YEAR == 2009], a_measure_night_complete$NEE[a_measure_night_complete$YEAR == 2009], main = paste0(i, name_site))
@@ -161,7 +165,7 @@ for (i in 56:length(files)) {
 
     df_accurate <- data.frame(NEE=data$NEE, TS=data$TS)
     NEE_pred <- fitted(mod, newdata=df_accurate)[, "Estimate"]
-    # plot(df_accurate$TS, df_accurate$NEE, main = paste0(iwindow, name_site))
+    plot(df_accurate$TS, df_accurate$NEE, main = paste0(iwindow, name_site))
     ER_obs_pred <- rbind(ER_obs_pred, data.frame(pred=NEE_pred, obs=df_accurate$NEE))
 
     df_present <- data.frame(TS=night_pattern$TSp[id])
