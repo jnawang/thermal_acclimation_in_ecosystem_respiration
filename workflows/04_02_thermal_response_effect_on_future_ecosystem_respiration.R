@@ -47,7 +47,7 @@ priors <- priors_temp
 files  <- list.files(path = file.path(dir_rawdata, "RespirationData"), pattern = '_ac.csv$', full.names = FALSE)
 # air and soil temperature patterns
 # for (i in 1:length(files)) {
-for (i in 56:length(files)) {
+for (i in 26:50) {
   ###
   # i = 74
   name_site <- substring(files[i], 1, 6)
@@ -183,7 +183,7 @@ for (i in 56:length(files)) {
   acclimation$NEE_night_mod_fa[iacclimation] <- NEE_gs * exp(acclimation$TAS_tot[iacclimation] * acclimation$TSmin_c_gs[iacclimation])
 }
 #
-write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_56_110.csv'), row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_26_50.csv'), row.names = F)
 
 # 
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
