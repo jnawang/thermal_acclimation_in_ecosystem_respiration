@@ -61,6 +61,10 @@ for (i in 1:length(files)) {
   good_years <- unique(a_measure_night_complete$YEAR)
   # print(good_years)
   
+  #------------------testing lines
+  a_measure_night_complete$TS <- a_measure_night_complete$TA
+  ac$TS <- ac$TA
+  
   #
   gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
   gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
@@ -80,7 +84,7 @@ for (i in 1:length(files)) {
       tmp <- ac %>% filter(TA > 0)     # only use the data with TA > 0C; use another range to calculate the coefficient
       acclimation$TS_TA[iacclimation] <- summary(lm(data=tmp, TS~TA))$coefficients[2,1]
     } else {
-      acclimation$TS_TA[iacclimation] <- 0.311303822     # tropical site: its values are obtained using observed temperature only.
+      acclimation$TS_TA[iacclimation] <- 1     # tropical site: its values are obtained using observed temperature only.
     }
     #
     night_pattern <- ac %>% filter(YEAR %in% good_years & !daytime) %>% group_by(DOY, HOUR, MINUTE, MONTH) %>% 
