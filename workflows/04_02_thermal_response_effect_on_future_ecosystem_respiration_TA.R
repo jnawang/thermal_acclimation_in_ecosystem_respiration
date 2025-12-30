@@ -21,7 +21,7 @@ feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 #
 outcome <- read.csv(file.path("data", "outcome_temp_water_gpp.csv"))
 #
-acclimation <- read.csv(file.path("data", "acclimation_data.csv"))
+acclimation <- read.csv(file.path("data", "acclimation_data_TA.csv"))
 #
 Tmin_month <- read.csv(file.path('data', 'Tmin_month_ssp245_wc.csv'))
 acclimation     <- acclimation %>% left_join(Tmin_month, by='site_ID')
@@ -76,9 +76,12 @@ for (i in 1:length(files)) {
   df_NEE_p_f <- data.frame()
   for (control_year in yearly_TSgs$YEAR[1:3]) {
     # control_year = outcome$control_year[outcome$site_ID == name_site]
-    a_measure_night_complete_control <- a_measure_night_complete %>% filter(YEAR == control_year)
+    a_measure_night_complete_control <- a_measure_night_complete %>% filter(YEAR == control_year) %>% filter(!is.na(TS) & !is.na(NEE))
     # plot(a_measure_night_complete$TS[a_measure_night_complete$YEAR == 2009], a_measure_night_complete$NEE[a_measure_night_complete$YEAR == 2009], main = paste0(i, name_site))
-    
+    if (nrow(a_measure_night_complete_control) < 90) {
+      next
+    }
+      
     # recalculate TS_TA relationship using TA threshold
     if (name_site!='GF-Guy') {
       tmp <- ac %>% filter(TA > 0)     # only use the data with TA > 0C; use another range to calculate the coefficient
@@ -177,8 +180,13 @@ for (i in 1:length(files)) {
   df_NEE_p_f$ratio <- df_NEE_p_f$NEE_f / df_NEE_p_f$NEE_p
 
   # get the mean of the top 2 ratios
-  acclimation$NEE_night_mod_p[iacclimation]  <- mean(df_NEE_p_f$NEE_p[-which.min(df_NEE_p_f$ratio)])
-  acclimation$NEE_night_mod_f[iacclimation]  <- mean(df_NEE_p_f$NEE_f[-which.min(df_NEE_p_f$ratio)])
+  if (nrow(df_NEE_p_f) == 3) {
+    acclimation$NEE_night_mod_p[iacclimation]  <- mean(df_NEE_p_f$NEE_p[-which.min(df_NEE_p_f$ratio)])
+    acclimation$NEE_night_mod_f[iacclimation]  <- mean(df_NEE_p_f$NEE_f[-which.min(df_NEE_p_f$ratio)])
+  } else {
+    acclimation$NEE_night_mod_p[iacclimation]  <- mean(df_NEE_p_f$NEE_p)
+    acclimation$NEE_night_mod_f[iacclimation]  <- mean(df_NEE_p_f$NEE_f)
+  }
   #
   NEE_gs <- acclimation$NEE_night_mod_f[iacclimation]
   acclimation$TSmin_c[iacclimation] <- mean(temp_change$TAmnc) * acclimation$TS_TA[iacclimation]
