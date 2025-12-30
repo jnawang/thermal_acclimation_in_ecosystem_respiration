@@ -64,6 +64,7 @@ for (i in 1:length(files)) {
   #------------------testing lines
   a_measure_night_complete$TS <- a_measure_night_complete$TA
   ac$TS <- ac$TA
+  #------------------testing lines end
   
   #
   gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
