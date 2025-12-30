@@ -187,7 +187,7 @@ for (i in 1:length(files)) {
 }
 #
 
-write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245TA.csv'), row.names = F)
 
 # 
 (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
