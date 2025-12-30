@@ -19,8 +19,6 @@ feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv')
 feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
 feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
 #
-outcome <- read.csv(file.path("data", "outcome_temp_water_gpp.csv"))
-#
 acclimation <- read.csv(file.path("data", "acclimation_data.csv"))
 #
 Tmin_month <- read.csv(file.path('data', 'Tmin_month_ssp245_wc.csv'))
@@ -184,11 +182,3 @@ for (i in 1:length(files)) {
 #
 
 write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)
-
-# 
-(mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
-
-# if we only consider the sites with significant effects, the ratio is about 0.1974396
-acclimation <- acclimation %>% mutate(NEE_night_mod_fa_sig = ifelse(TAS_totp > 0.05, NEE_night_mod_f, NEE_night_mod_fa))
-(mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_fa_sig)) / (mean(acclimation$NEE_night_mod_f) - mean(acclimation$NEE_night_mod_p))
-

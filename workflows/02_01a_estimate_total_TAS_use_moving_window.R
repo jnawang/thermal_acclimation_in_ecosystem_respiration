@@ -281,7 +281,6 @@ for (id in 1:nrow(site_info)) {
     geom_point() +
     geom_smooth(method = 'lm') +
     labs(title = name_site)
-  ggsave(paste0('graphs/', name_site, '_TAS_temp.png'))
   print(plot)
   
   outcome[id, "site_ID"] <- name_site
