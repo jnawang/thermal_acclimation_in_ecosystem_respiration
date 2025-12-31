@@ -18,14 +18,14 @@
     -   Estimates top soil (\<10 cm) temperature at sites with lots of missing soil temperature data.
     -   Exports 16 csv files containing predicted soil temperature for 16 sites with incomplete soil temperature measurements. csv files are saved as SITE_TS_rfp.csv, where SITE is the name of the site.
 -   `01_02a_filter_high_quality_night_respiration_EuroFlux.R`:
-    -   Prepares data for fitting temperature-respiration curves for 48 EuroFlux sites.
-    -   Exports 48 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
-    -   Exports 48 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
+    -   Prepares data for fitting temperature-respiration curves for 46 EuroFlux sites.
+    -   Exports 46 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
+    -   Exports 46 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
     -   Exports 1 csv file containing the start and end date of growing seasons at all EuroFlux sites.
 -   `01_02b_filter_high_quality_night_respiration_AmeriFlux`:
-    -   Prepares data for fitting temperature-respiration curves for 62 AmeriFlux sites.
-    -   Exports 62 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
-    -   Exports 62 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
+    -   Prepares data for fitting temperature-respiration curves for 64 AmeriFlux sites.
+    -   Exports 64 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
+    -   Exports 64 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
     -   Exports 1 csv file containing the start and end date of growing seasons at all AmeriFlux sites.
 
 2.  Calculate Thermal Response Strength (TAS) for All Sites
@@ -61,7 +61,7 @@
 
 ## How to reproduce the workflow:
 
-1.  Download raw data required for this project.
+1.  Download raw data required for this project (All data are now uploaded on Zenodo with DOI: 10.5281/zenodo.18095996).
 
 -   1.1 Download raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
 
@@ -73,15 +73,19 @@
 
 -   1.5 Download BADM Data Product of all AmeriFlux sites: <https://ameriflux.lbl.gov/data/badm/>
 
-    -   All the data are now stored on Yale data server.
+-   1.6 Download future global climate data from worldclimate: <https://www.worldclim.org/data/cmip6/cmip6climate.html>
 
 2.  Use the *site_info.csv* file in *data* folder to get started.
 
 -   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each flux file
 -   It is pre-required to run the workflow.
 
-3.  cmdstanr should be installed in order to run some scripts in the *workflows* folder.
+3.  cmdstanr should be installed in order to run some scripts in the *workflows* folder. Please refer to this page for cmdstanr installment. <https://mc-stan.org/cmdstanr/articles/cmdstanr.html>
 
 4.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
 
 5.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.
+
+## Demonstration data and scripts for one site: US-Kon
+
+Please refer to the *README* file in the "Demo_code_data_for_1site" folder.

@@ -2,13 +2,13 @@
 # Output of this script: two .csv files for each site. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
 #
-# It will take 2 mins to finish running this script. 
+# It will take 5 mins to finish running this script. 
 
 library(librarian)
-shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo)
+shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo, sf)
 rm(list=ls())
 
-####################Attention: change this directory to the location where you place this folder
+####################Attention: If you only download this folder, you need to change this directory to the location where you place this folder
 dir_rawdata <- 'Demo_code_data_for_1site'
 ####################End Attention
 

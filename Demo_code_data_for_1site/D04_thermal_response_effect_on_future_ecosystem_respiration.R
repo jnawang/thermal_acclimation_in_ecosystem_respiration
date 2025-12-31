@@ -8,7 +8,7 @@ library(librarian)
 shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
 rm(list=ls())
 
-####################Attention: change this directory to the location where you place this folder
+####################Attention: If you only download this folder, you need to change this directory to the location where you place this folder
 dir_rawdata <- 'Demo_code_data_for_1site'
 ####################End Attention
 
