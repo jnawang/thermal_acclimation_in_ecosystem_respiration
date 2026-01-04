@@ -57,6 +57,7 @@ t.test(outcome$TAS_tot[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH", "WE
 # broadleaf forests had trends for enhancing TAS. 
 t.test(outcome$TAS[outcome$IGBP %in% c("DBF", "EBF", "MF", "DNF", "CSH", "WET")], mu=0) # 0.01805551, p-value = 0.015
 
+t.test(outcome$TAS[outcome$IGBP %in% c("WET")], mu=0) 
 t.test(outcome$TAS_app[outcome$IGBP %in% c("WET")], mu=0)  # -0.006572169, t = -1.7525, df = 13, p-value = 0.1032
 
 
@@ -73,14 +74,14 @@ for (i in 1:length(Climate_classes)) {
 }
 
 t.test(outcome$TAS[outcome$Climate_class %in% c("Csa")], mu=0)  # 0.02203213, p-value = 0.09531
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Bsh", "Bsk", "Bwk", "Csb")], mu=0)  # -0.08888042, p-value = 0.0001909
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Bsh", "Bsk", "Bwk")], mu=0)  # -0.08888042, p-value = 0.0001909
 
 
 # look at total response
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb")], mu=0)  # p-value = 0.09921
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Cfc")], mu=0)  # p-value = 0.09921
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Dfa", "Dfb")], mu=0)  # p-value = 0.06449
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Dfc", "Dfd", "Dwc")], mu=0)  # p-value = 0.2231
-t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc")], mu=0) 
+t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Cfa", "Cfb", "Cfc", "Dfa", "Dfb", "Dfc", "Dfd", "Dwc", "Csa", "Csb", "ET", "Af", "Am")], mu=0) 
 t.test(outcome$TAS_tot[outcome$Climate_class %in% c("Csa")], mu=0)  # p-value = 0.09921
 
 

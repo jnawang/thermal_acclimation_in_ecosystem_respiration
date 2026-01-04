@@ -5,7 +5,7 @@
 # you may compare your result from this site with the complete results in acclimation_data_future_ssp245.csv
 
 library(librarian)
-shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
+shelf(dplyr, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
 rm(list=ls())
 
 ####################Attention: If you only download this folder, you need to change this directory to the location where you place this folder

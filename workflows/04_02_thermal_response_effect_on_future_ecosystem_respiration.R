@@ -4,7 +4,7 @@
 # This script takes ~6 hours to run.
 
 library(librarian)
-shelf(dplyr, terra, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
+shelf(dplyr, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
