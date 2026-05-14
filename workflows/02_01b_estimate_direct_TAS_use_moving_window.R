@@ -10,12 +10,12 @@
 # please install 'cmdstanr' before you run this script. 
 
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms, nlme)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
@@ -198,6 +198,8 @@ for (id in 1:nrow(site_info)) {
       }
     }
 
+    if (nrow(data) > 300) { data <- data[sample(1:nrow(data), 300), ] }  # save time for first model estimate
+    
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                       prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
@@ -246,13 +248,17 @@ for (id in 1:nrow(site_info)) {
           filter(between(DOY, window_start - extend_days, window_end + extend_days))
         # some conditions to break out to avoid dead loop
         if (nrow(data_subset) >= nobs_threshold & (window_end + extend_days) >= gEnd & TSref >= max(data_subset$TS, na.rm=T)) {break}
-        if (extend_days > (gEnd - gStart) / 2.0) {break}   # max window size for some years = 91; 3 month
+        if (extend_days >= 24) { break }   # max window size: two months
       }
       df_site_year_window[icount, 4] <- nrow(data_subset)
       df_site_year_window[icount, 5] <- extend_days
       
-      if (nrow(data_subset) <= nobs_threshold) { next }
-
+      # ensure enough observations
+      if (nrow(data_subset) <= 25) { next }   # this is mainly for US-Uaf, which has few data
+      
+      # ensure enough temperature range
+      if (!between(TSref, quantile(data_subset$TS, 0.025, na.rm=T), quantile(data_subset$TS, 0.975, na.rm=T))) { next }
+      
       mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
@@ -327,11 +333,18 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-  if (length(unique(df_site_year_window$window)) > 1) {
-    outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
-  } else {
-    outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
-  }
+  # if (length(unique(df_site_year_window$window)) > 1) {
+  #   outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
+  # } else {
+  #   outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
+  # }
+  
+  # take account of potential autocorrelation across years
+  mod_ar1 <- gls(lnRatio ~ TS + window,
+                 data = df_site_year_window,
+                 correlation = corAR1(form = ~ growing_year | window), 
+                 na.action = na.omit)
+  outcome[id, c("TAS", "TASp")] <- summary(mod_ar1)$tTable["TS", c("Value", "p-value")]
 }
 # end of each site
 
