@@ -15,7 +15,7 @@ rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
@@ -218,6 +218,9 @@ for (id in 1:nrow(site_info)) {
       # ensure enough temperature range
       if (!between(TSref, quantile(data_subset$TS, 0.025, na.rm=T), quantile(data_subset$TS, 0.975, na.rm=T))) { next }
 
+      # ensure nighttime NEE is positive
+      if (median(data_subset$NEE) < 0.2) { next }
+      
       mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
@@ -251,7 +254,8 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window$TS[icount] <- ac_yearly_window$TS[ac_yearly_window$growing_year == iyear]
       
       # ER at reference temperature
-      df_site_year_window$ERref[icount] <- fitted(mod, newdata=data_ref)[, "Estimate"]
+      df_ERref <- fitted(mod, newdata=data_ref)
+      df_site_year_window$ERref[icount] <- ifelse(df_ERref[, "Estimate"] <  df_ERref[, "Est.Error"], NA, df_ERref[, "Estimate"])
       
       if (iyear == control_year) {
         ERref_control <- df_site_year_window$ERref[icount]
@@ -267,14 +271,14 @@ for (id in 1:nrow(site_info)) {
     
     df_site_year_window$lnRatio[(icount-length(years) + 1):icount] <- log(df_site_year_window$ERref[(icount-length(years) + 1):icount] / ERref_control)
     
-    # remove extreme values due to potentially large gaps
+    # remove unrealistic extreme values due to potentially large gaps; this only affects a few sites
     x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
     outlier <- boxplot.stats(x, coef = 3)$out
     id.remove <- match(outlier[abs(outlier) > 1.5], x)
     if (length(id.remove) > 0) {
       df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
       icount <- icount - length(id.remove)
-    }    
+    }
 
   }
   # end of each window
@@ -291,12 +295,7 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-  # if (length(unique(df_site_year_window$window)) > 1) {
-  #   outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS + window, na.action = na.exclude))$coefficients[2, c(1, 4)]
-  # } else {
-  #   outcome[id, c("TAS", "TASp")] <- summary(lm(data=df_site_year_window, lnRatio ~ TS, na.action = na.exclude))$coefficients[2, c(1, 4)]
-  # }
-  
+
   # take account of potential autocorrelation across years
   mod_ar1 <- gls(lnRatio ~ TS + window,
     data = df_site_year_window,

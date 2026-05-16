@@ -13,8 +13,8 @@ shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 files_AmeriFlux_BASE <- list.files(file.path(dir_rawdata, "SiteData", "AmeriFlux_BASE"), pattern=".zip$", full.names = T)
@@ -25,7 +25,7 @@ feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tS
 
 # put a for loop here
 for (id in 1:nrow(site_info)) {
-  # id = 114
+  # id = 111
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
@@ -35,7 +35,7 @@ for (id in 1:nrow(site_info)) {
   
   name_site <- site_info$site_ID[id]
   print(name_site)
-  
+
   # read data
   a <- amf_read_base(files_AmeriFlux_BASE[grepl(name_site, files_AmeriFlux_BASE)], parse_timestamp=TRUE, unzip = T)
   a[a==-9999] <- NA
@@ -185,6 +185,9 @@ for (id in 1:nrow(site_info)) {
     } else if (name_site == "US-MBP") {
       # this site only missed a few TS data, so only estimate these missing data.
       ac$TS[is.na(ac$TS)] <- ac$TA[is.na(ac$TS)] * 0.3688005 + 5.8670273
+    } else if (name_site %in% c("CA-ARB", "US-SRS", "CA-ARF", "US-BZo", "CA-KLP", "US-Rms", "US-ChR")) {
+      mod_lm <- lm(data = ac, TS ~ TA, na.action = na.omit)
+      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
     }
   }
   
