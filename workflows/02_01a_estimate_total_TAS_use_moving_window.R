@@ -14,8 +14,8 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesp
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
@@ -161,11 +161,15 @@ for (id in 1:nrow(site_info)) {
       priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", min(exp(coefficients(mod_nls)["C0_ln"]), 10), ", 5)")
     }
     
-    if (nrow(data) > 300) { data <- data[sample(1:nrow(data), 300), ] }  # save time for first model estimate
-
+    if (nrow(data) > 300) { 
+      data_subset <- data[sample(1:nrow(data), 300), ]  # save time for first model estimate
+    } else {
+      data_subset <- data
+    }
+    
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                      prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                      prior = priors, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
                       control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
     

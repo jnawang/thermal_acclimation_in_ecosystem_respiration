@@ -1,7 +1,7 @@
 # This script estimates the effects of total thermal responses on future ecosystem respiration
 # Authors: Junna Wang, October, 2025
 
-# This script takes ~6 hours to run.
+# This script takes ~7 hours to run.
 
 library(librarian)
 shelf(dplyr, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridate)

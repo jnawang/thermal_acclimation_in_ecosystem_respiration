@@ -2,7 +2,7 @@
 # Authors: Junna Wang, August and September, 2025
 # Methods we tested:
 # Step 1: determine the window size; 2 weeks ~ 4 weeks
-# Step 2: for a specific year, do we need to skip due to data limitation (such as no observations during a period). 
+# Step 2: for a specific year, do we need to  due to data limitation (such as no observations during a period). 
 # Step 3: use all the data within that moving window to build an ER model. Use these parameter values as initial values of each year. 
 # Step 4: find a method to estimate missed values. It is likely linear interpolation. 
 
@@ -10,12 +10,12 @@
 # please install 'cmdstanr' before you run this script. 
 
 library(librarian)
-shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms, nlme, tidyr)
+shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms, nlme)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
@@ -150,19 +150,20 @@ for (id in 1:nrow(site_info)) {
 
   #------------------------------------PREPARE FOR formula, stprm, priors of ER models---------------------------------
   if (site_info$SWC_use[id] == 'YES') {
+    # for brm models
     frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * SWC / (Hs + SWC) * (C0 + NEE_daytime * k2)
-    param <- list(alpha ~ 0 + year_group,
-                  beta ~ 0 + year_group,
-                  C0 ~ 0 + year_group,
-                  Hs+k2 ~ 1)
+    param <- alpha+beta+C0+Hs+k2 ~ 1
     priors <- priors_temp + priors_water + priors_gpp
+    # for nls models
+    # alpha, CO, k2, and Hs are all positive and beta are negative
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * SWC / (exp(Hs_ln) + SWC) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6, Hs_ln = 2.3)
   } else {
     frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * (C0 + NEE_daytime * k2)
-    param <- list(alpha ~ 0 + year_group,
-                  beta ~ 0 + year_group,
-                  C0 ~ 0 + year_group,
-                  k2 ~ 1)
+    param <- alpha+beta+C0+k2 ~ 1
     priors <- priors_temp + priors_gpp
+    frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * (exp(C0_ln) + NEE_daytime * exp(k2_ln))
+    stprm <- c(C0_ln = 0.7, alpha_ln = -2.99, beta_ln = -6.9, k2_ln = -1.6)
   }
   
   df_site_year_window <- data.frame(site_ID = character(), growing_year = integer(), window = character(), nobsv = integer(), extend_days = integer(),  
@@ -184,6 +185,41 @@ for (id in 1:nrow(site_info)) {
     # skip a window if no enough data; this is for sites ('US-ICt', 'US-ICh', 'US-ICs', 'FI-Sod') with a period of the whole day is daytime. 
     if (nrow(data) < 100) { next }
     
+    # try gsl_nls first because it is fast, and then update priors of brm models based on mod_nls
+    # this can give abnormal initial values. 
+    mod_nls <- try(gsl_nls(fn=as.formula(frmu_nls), data=data, start=stprm))
+    if (!inherits(mod_nls, "try-error")) {
+      priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2), ", 1.0)")
+      priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", -min(exp(coefficients(mod_nls)["beta_ln"]), 0.01), ", 0.1)")
+      priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", min(exp(coefficients(mod_nls)["C0_ln"]), 10), ", 5)")
+      priors$prior[priors$nlpar == 'k2'] <- paste0("normal(", min(exp(coefficients(mod_nls)["k2_ln"]), 10), ", 2)")
+      if (site_info$SWC_use[id] == 'YES') {
+        priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
+      }
+    }
+
+    if (nrow(data) > 300) { 
+      data_subset <- data[sample(1:nrow(data), 300), ]  # save time for first model estimate
+    } else {
+      data_subset <- data
+    }
+    
+    # call the brm model to estimate parameters; this step takes much longer time.
+    mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
+                      prior = priors, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                      control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
+    # print(summary(mod0), digits = 3)
+
+    # use this result as prior of each year
+    priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
+    priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
+    priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod0)["C0_Intercept", "Estimate"], ", 5)")
+    priors$prior[priors$nlpar == 'k2'] <- paste0("normal(", brms::fixef(mod0)["k2_Intercept", "Estimate"], ", 2)")
+    #
+    if (site_info$SWC_use[id] == 'YES') {
+      priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", brms::fixef(mod0)["Hs_Intercept", "Estimate"], ", 10)")
+    } 
+
     # get reference temperature, SWC, and NEEday of each window
     TSref <- mean(ac$TS[between(ac$DOY, window_start, window_end)], na.rm=T)
     NEEdayref <- mean(ac_day$NEE_daytime[between(ac_day$DOY, window_start, window_end)], na.rm=T)
@@ -194,8 +230,8 @@ for (id in 1:nrow(site_info)) {
       data_ref <- data.frame(TS=TSref, NEE_daytime=NEEdayref)
     }
     
-    data_window <- data.frame()
-    # collect data for each year
+    #----loop through each year----
+    ERref_control <- NA
     for (iyear in years) {
       print(paste(name_site, iwindow, iyear, sep='_'))
       icount = icount + 1
@@ -230,95 +266,69 @@ for (id in 1:nrow(site_info)) {
       # ensure nighttime NEE is positive
       if (median(data_subset$NEE) < 0.2) { next }
       
-      data_window <- bind_rows(data_window, data_subset)
-    }
-    data_window$year_group <- as.factor(data_window$growing_year)
-    
-    # run a simple model first; if failed, adjust parameter values
-    mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
-                         prior = priors, data = data_window, iter = 2000, cores =4, chains = 4, backend = "cmdstanr", 
-                         control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
-    
-    if (!inherits(mod, "try-error")) {
-      # cmdfit <- mod$fit
-      # diag <- cmdfit$sampler_diagnostics()
-      # n_divergent <- sum(diag[, , "divergent__",])
-      np <- nuts_params(mod)
-      n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
-      failed_brm <- n_divergent > 0 
-    } else {
-      failed_brm <- TRUE
-    }
-    
-    # if brm models fail or have divergent transitions, try another time
-    if (failed_brm) {
       mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
-                           prior = priors, data = data_window, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
-                           control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
-    }    
-    
-    # extract model results
-    data_window$NEE_pred <- fitted(mod)[, "Estimate"]
-    ER_obs_pred <- rbind(ER_obs_pred, data_window[between(data_window$DOY, window_start, window_end), ])
-    
-    # check model performance
-    # p1 <- ggplot(data_window, aes(x = TS)) + 
-    #   geom_point(aes(y = NEE)) + 
-    #   geom_line(aes(y = NEE_pred)) + 
-    #   facet_wrap(~ growing_year) +
-    #   theme_classic()
-    # print(p1)
-    
-    # print(plot(data_window$TS, data_window$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-    # lines(data_window$TS, fitted(mod)[, "Estimate"])  
-    param_names_comb <- names(brms::fixef(mod)[, "Estimate"])
-    index <- grepl("_year_group", param_names_comb)
-    parameters <- data.frame(growing_year = as.integer(sub(".*_year_group", "", param_names_comb[index])), 
-                     param_name = sub("_year_group.*", "", param_names_comb[index]),
-                     param_value = brms::fixef(mod)[index, "Estimate"])
-    #
-    parameters <- pivot_wider(parameters, names_from = param_name, values_from = param_value)
-     
-    index <- which(grepl("_Intercept$", param_names_comb))
-    for (icol in index) {
-      parameters[[sub('_Intercept', '', param_names_comb[icol])]] <- brms::fixef(mod)[icol, "Estimate"]
-    }
-  
-    # add TS
-    parameters <- left_join(parameters, ac_yearly_window[, c("growing_year", "TS")], by = 'growing_year')
-    
-    # get ER at reference temperature, water, and NEEday conditions
-    data_ref <- crossing(data_ref, year_group = unique(data_window$year_group))
-    df_ERref <- fitted(mod, newdata=data_ref)
-    # reject an estimate if Est.Error is larger than Estimate    
-    data_ref$ERref <- ifelse(df_ERref[, "Estimate"] <  df_ERref[, "Est.Error"], NA, df_ERref[, "Estimate"]) 
-    #
-    data_ref$year_group <- as.integer(as.character(data_ref$year_group))
-    
-    if (control_year %in% data_ref$year_group && !is.na(data_ref$ERref[control_year == data_ref$year_group])) {
-      ERref_control <- data_ref$ERref[control_year == data_ref$year_group]
-    } else {
-      # if no data in a control year during this window, use average ER across years as reference ER
-      ERref_control <- mean(data_ref$ERref, na.rm=T)
-    }
+                       prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
+                       control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2
+      
+      if (!inherits(mod, "try-error")) {
+        # cmdfit <- mod$fit
+        # diag <- cmdfit$sampler_diagnostics()
+        # n_divergent <- sum(diag[, , "divergent__",])
+        np <- nuts_params(mod)
+        n_divergent <- sum(subset(np, Parameter == "divergent__")$Value)
+        failed_brm <- n_divergent > 0 
+      } else {
+        failed_brm <- TRUE
+      }
+      
+      # if brm models fail or have divergent transitions, try another time
+      if (failed_brm) {
+        mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
+                             prior = priors, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
+                             control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
+      }
 
-    # add reference ER
-    parameters <- left_join(parameters, data_ref[, c("year_group", "ERref")], by = c('growing_year' = "year_group"))
+      # extract model results
+      data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
+      ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
+      
+      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      # lines(data_subset$TS, fitted(mod)[, "Estimate"])
+      
+      # model parameters
+      df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
+      
+      # average TS of moving window at each year
+      df_site_year_window$TS[icount] <- ac_yearly_window$TS[ac_yearly_window$growing_year == iyear]
+      
+      # ER at reference temperature, water, and NEEday conditions
+      df_ERref <- fitted(mod, newdata=data_ref)
+      df_site_year_window$ERref[icount] <- ifelse(df_ERref[, "Estimate"] <  df_ERref[, "Est.Error"], NA, df_ERref[, "Estimate"])
+      
+      if (iyear == control_year) {
+        ERref_control <- df_site_year_window$ERref[icount]
+      }
+    }
+    # end of each year loop
     
-    parameters$lnRatio <- log(parameters$ERref / ERref_control)
+    # if no data in a control year during this window, use average ER across years as the reference conditions
+    if (is.na(ERref_control)) {
+      irow_site_window <- which(df_site_year_window$site_ID == name_site & df_site_year_window$window == paste(window_start, window_end, sep='_'))
+      ERref_control <- mean(df_site_year_window$ERref[irow_site_window], na.rm=T)
+    }
+    
+    df_site_year_window$lnRatio[(icount-length(years) + 1):icount] <- log(df_site_year_window$ERref[(icount-length(years) + 1):icount] / ERref_control)
     
     # remove unrealistic extreme values due to potentially large gaps; this only affects a few sites
-    x <- parameters$lnRatio
+    x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
     outlier <- boxplot.stats(x, coef = 3)$out
     id.remove <- match(outlier[abs(outlier) > 1.5], x)
     if (length(id.remove) > 0) {
-      parameters <- parameters[-id.remove, ]
+      df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
+      icount <- icount - length(id.remove)
     }
     
-    # update df_site_year_window
-    df_site_year_window[(icount-length(years) + 1):icount, ] <- rows_update(df_site_year_window[(icount-length(years) + 1):icount, ], parameters, by = 'growing_year')   
-  }    
-
+  }
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
   
@@ -331,7 +341,7 @@ for (id in 1:nrow(site_info)) {
   outcome[id, "site_ID"] <- name_site
   outcome[id, c("RMSE", "R2")] <- postResample(pred = ER_obs_pred$NEE_pred, obs = ER_obs_pred$NEE)[1:2]
   outcome[id, c("control_year", "window_size", "nwindow")] <- c(control_year, window_size, nwindow)
-
+  
   # take account of potential autocorrelation across years
   mod_ar1 <- gls(lnRatio ~ TS + window,
                  data = df_site_year_window,
