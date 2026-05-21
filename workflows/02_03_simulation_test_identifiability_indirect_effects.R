@@ -28,10 +28,6 @@
 # do we want to have raw data
 # to be persuasive, we should be able to plot these data on a figure
 
-
-
-
-
 rm(list = ls())
 
 set.seed(20260423)
@@ -81,8 +77,8 @@ simulate_scenario <- function(
           gpp_mean <- ref_gpp + lambda_gpp * t_anom + rnorm(1, mean = 0, sd = 0.05)
 
           ts_center <- rnorm(n_obs, mean = 0, sd = 0.9)
-          swc_dev <- rnorm(n_obs, mean = swc_mean - ref_swc, sd = 0.12)
-          gpp_dev <- rnorm(n_obs, mean = gpp_mean - ref_gpp, sd = 0.16)
+          swc_dev <- rnorm(n_obs, mean = swc_mean - ref_swc, sd = 1.25)  # sd = 0.12
+          gpp_dev <- rnorm(n_obs, mean = gpp_mean - ref_gpp, sd = 1.5)  # sd = 0.16
           hidden_dev <- rho_hidden * (swc_dev + gpp_dev) + rnorm(n_obs, mean = 0, sd = 0.10)
 
           direct_shift <- beta_direct * t_anom
@@ -184,7 +180,7 @@ scenario_defs <- list(
     rho_hidden = 0.00
   ),
   list(
-    scenario = "Apparent only",
+    scenario = "Measured indirect only",
     beta_direct = 0.000,
     lambda_swc = 0.18,
     lambda_gpp = 0.13,
@@ -194,7 +190,7 @@ scenario_defs <- list(
     rho_hidden = 0.00
   ),
   list(
-    scenario = "Mixed identifiable",
+    scenario = "Direct + measured indirect",
     beta_direct = 0.030,
     lambda_swc = 0.12,
     lambda_gpp = 0.11,
@@ -204,7 +200,7 @@ scenario_defs <- list(
     rho_hidden = 0.00
   ),
   list(
-    scenario = "Confounded residual",
+    scenario = "Direct + measured indirect + hidden indirect",
     beta_direct = 0.030,
     lambda_swc = 0.12,
     lambda_gpp = 0.11,
@@ -245,10 +241,10 @@ plot_panel <- function(df, title_text, apparent_note = FALSE) {
   cols <- c("#4C78A8", "#54A24B", "#F58518")
   boxplot(
     vals,
-    names = c("Total", "Direct", "Apparent"),
+    names = c("Total", "Direct", "Indirect"),
     col = cols,
     border = NA,
-    ylab = "Estimated TAS slope",
+    ylab = "Estimated TRS slope",
     ylim = range(c(unlist(vals), df$total_true, df$direct_true, df$apparent_true, df$residual_true)) + c(-0.02, 0.02)
   )
   abline(h = unique(df$total_true), col = cols[1], lwd = 2, lty = 2)
@@ -258,7 +254,7 @@ plot_panel <- function(df, title_text, apparent_note = FALSE) {
     abline(h = unique(df$residual_true), col = "#B22222", lwd = 2, lty = 3)
     legend(
       "topleft",
-      legend = c("true total", "true direct", "true mediated apparent", "true residual incl. hidden"),
+      legend = c("true total", "true direct", "true measured indirect", "true residual = measured + hidden indirect"),
       col = c(cols[1], cols[2], cols[3], "#B22222"),
       lty = c(2, 2, 2, 3),
       lwd = 2,
@@ -268,7 +264,7 @@ plot_panel <- function(df, title_text, apparent_note = FALSE) {
   } else {
     legend(
       "topleft",
-      legend = c("true total", "true direct", "true apparent"),
+      legend = c("true total", "true direct", "true measured indirect"),
       col = cols,
       lty = 2,
       lwd = 2,
@@ -279,7 +275,7 @@ plot_panel <- function(df, title_text, apparent_note = FALSE) {
   mtext(title_text, side = 3, line = 0.8, font = 2, cex = 0.95)
   text(
     x = c(1, 2, 3),
-    y = sapply(vals, function(v) quantile(v, 0.95)) + 0.004,
+    y = sapply(vals, function(v) quantile(v, 0.95)) + 0.001,
     labels = sprintf("%.3f", c(mean(df$total_est), mean(df$direct_est), mean(df$apparent_est))),
     cex = 0.78
   )
@@ -295,12 +291,12 @@ op <- par(no.readonly = TRUE)
 par(mfrow = c(2, 2), mar = c(4.8, 4.8, 3.5, 1.2), oma = c(0, 0, 2.4, 0))
 
 plot_panel(subset(replicate_results, scenario == "Direct only"), "A. Direct only")
-plot_panel(subset(replicate_results, scenario == "Apparent only"), "B. Apparent only")
-plot_panel(subset(replicate_results, scenario == "Mixed identifiable"), "C. Mixed identifiable")
-plot_panel(subset(replicate_results, scenario == "Confounded residual"), "D. Confounded residual", apparent_note = TRUE)
+plot_panel(subset(replicate_results, scenario == "Measured indirect only"), "B. Measured indirect only")
+plot_panel(subset(replicate_results, scenario == "Direct + measured indirect"), "C. Direct + measured indirect")
+plot_panel(subset(replicate_results, scenario == "Direct + measured indirect + hidden indirect"), "D. Direct + measured indirect + hidden indirect", apparent_note = TRUE)
 
 mtext(
-  "Simulation-based identifiability of direct and apparent TAS components",
+  "Simulation-based identifiability of direct and indirect TRS components",
   outer = TRUE,
   cex = 1.25,
   font = 2
