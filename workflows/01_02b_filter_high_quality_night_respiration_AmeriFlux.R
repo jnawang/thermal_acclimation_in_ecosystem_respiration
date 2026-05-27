@@ -24,8 +24,8 @@ site_info <- read.csv(file.path('data', 'site_info.csv'))
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
 # put a for loop here
-for (id in 1:nrow(site_info)) {
-  # id = 111
+for (id in 111:nrow(site_info)) {
+  # id = 116
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
@@ -185,7 +185,15 @@ for (id in 1:nrow(site_info)) {
     } else if (name_site == "US-MBP") {
       # this site only missed a few TS data, so only estimate these missing data.
       ac$TS[is.na(ac$TS)] <- ac$TA[is.na(ac$TS)] * 0.3688005 + 5.8670273
-    } else if (name_site %in% c("CA-ARB", "US-SRS", "CA-ARF", "US-BZo", "CA-KLP", "US-Rms", "US-ChR")) {
+    } else if (name_site == "US-BZo") {
+      # recent data is more accurate
+      mod_lm <- lm(data = ac[ac$YEAR > 2021 & ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
+    } else if (name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP")) {     # , "US-Rms"
+      # cold area, use TA above 0 for growing season
+      mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
+    } else if (name_site %in% c("US-SRS", "US-ChR")) {
       mod_lm <- lm(data = ac, TS ~ TA, na.action = na.omit)
       ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
     }

@@ -8,8 +8,8 @@ shelf(dplyr, ggplot2, caret, performance, zoo, bayesplot, brms, gslnls, lubridat
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Users/junnawang/YaleLab/data_server/'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 options(na.action = "na.omit")
@@ -49,6 +49,11 @@ for (i in 1:length(files)) {
   # i = 74
   name_site <- substring(files[i], 1, 6)
   print(paste0(i, name_site))
+  
+  
+  if (! name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP", "US-BZo", "US-ChR", "US-Rms", "US-SRS")) { next }
+  
+  
   #
   iacclimation <- which(acclimation$site_ID==name_site)
   #
@@ -181,4 +186,4 @@ for (i in 1:length(files)) {
 }
 #
 
-write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_7sites.csv'), row.names = F)

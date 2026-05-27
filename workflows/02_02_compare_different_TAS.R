@@ -49,8 +49,19 @@ for (i in 1:length(IGBPs)) {
   }
 }
 
+t.test(outcome$TAS_tot, mu=0)          # t = -2.0232, df = 116, p-value = 0.04535; mean = -0.007515424 
+t.test(outcome$TAS_tot[1:110], mu=0)   # t = -2.3793, df = 109, p-value = 0.01908; mean = -0.00913258
+
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("OSH", "SAV", "WSA")], mu=0)
+
 t.test(outcome$TAS_tot[outcome$IGBP %in% c("OSH", "SAV", "WSA")], mu=0) # 0.01805551, p-value = 0.015
 t.test(outcome$TAS_tot[outcome$IGBP %in% c("GRA", "ENF")], mu=0) # 
+
+
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("GRA")], mu=0) # 
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("ENF")], mu=0) # 
+t.test(outcome$TAS_tot[outcome$IGBP %in% c("WET")], mu=0) # 
+
 
 t.test(outcome$TAS_tot[outcome$IGBP %in% c("EBF", "DBF", "MF", "DNF", "CSH", "WET")], mu=0)
 

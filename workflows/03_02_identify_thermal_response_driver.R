@@ -9,6 +9,7 @@ rm(list=ls())
 
 #
 acclimation <- read.csv(file.path('data', 'acclimation_data.csv'))
+
 #------------------------do some explorations first-----------------------------
 summary(lm(data=acclimation, TAS ~ IGBP))
 summary(lm(data=acclimation, TAS ~ Climate_class))
