@@ -49,11 +49,6 @@ for (i in 1:length(files)) {
   # i = 74
   name_site <- substring(files[i], 1, 6)
   print(paste0(i, name_site))
-  
-  
-  if (! name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP", "US-BZo", "US-ChR", "US-Rms", "US-SRS")) { next }
-  
-  
   #
   iacclimation <- which(acclimation$site_ID==name_site)
   #

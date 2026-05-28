@@ -8,7 +8,7 @@
 # this script takes 5 mins to run. 
 
 library(librarian)
-shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot)
+shelf(dplyr, lubridate, ggpubr, ggplot2, zoo, terra, corrplot, mblm, boot)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
@@ -55,10 +55,41 @@ stat.soil <- stat.soil %>% mutate(SOC = case_when(is.na(GSOC_obs) ~ GSOC,
 stat.climate <- data.frame(site_ID=character(), NEE=double(), NEE_day=double(), NEE_night=double(),                      
                            MATA=double(), SSTA=double(), IATA=double(), DRTA=double(), RSTA=double(),
                            MATS=double(), SSTS=double(), IATS=double(), DRTS=double(), RSTS=double(),
-                           NEE2=double(), NEE_day2=double(), NEE_night2=double(),
-                           NEE_FLUXNET=double(), MAT_FLUXNET=double(), P_FLUXNET=double())
+                           NEE2=double(), NEE_day2=double(), NEE_night2=double(), 
+                           warm_rate=double(), warm_ratep=double())
 # notation of variable names
 # MA: mean annual; SS: seasonal variation; IA: inter-annual variation; RD: daily range; RS: seasonal range
+
+# a function to calculate warming rate
+mblm_slope_test <- function(x, y, R_boot = 1000, R_perm = 1000, seed = 123) {
+  df <- data.frame(x = x, y = y)
+  df <- df[complete.cases(df), ]
+  
+  set.seed(seed)
+  
+  slope <- unname(coef(mblm::mblm(y ~ x, data = df))[2])
+  
+  boot_fun <- function(d, i) {
+    unname(coef(mblm::mblm(y ~ x, data = d[i, ]))[2])
+  }
+  
+  b <- boot::boot(df, boot_fun, R = R_boot)
+  ci <- boot::boot.ci(b, type = "perc")$percent[4:5]
+  
+  perm_slopes <- replicate(R_perm, {
+    df_perm <- df
+    df_perm$y <- sample(df_perm$y)
+    unname(coef(mblm::mblm(y ~ x, data = df_perm))[2])
+  })
+  
+  data.frame(
+    slope = slope,
+    ci_low = unname(ci[1]),
+    ci_high = unname(ci[2]),
+    p_perm = mean(abs(perm_slopes) >= abs(slope))
+  )
+}
+#------------------
 #
 # Read ac data
 files <- list.files(file.path(dir_rawdata, 'RespirationData'), pattern = '_ac.csv$', full.names = TRUE)
@@ -151,10 +182,17 @@ for (i in 1:length(files)) {
   data_1year_rg  <- data_1day %>% group_by(YEAR) %>% summarise(TS=max(TS, na.rm=T)-min(TS, na.rm=T), TA=max(TA, na.rm=T)-min(TA, na.rm=T), .groups = 'drop')
   stat.climate[i, 9]  <- mean(data_1year_rg$TA)
   stat.climate[i, 14] <- mean(data_1year_rg$TS)
+  
+  # Warming rates
+  data_annual  <- ac %>% filter(YEAR %in% good_years) %>% group_by(YEAR) %>% summarise(TA=mean(TA, na.rm=T), .groups = 'drop')
+  # stat.climate[i, 18:19] <- mblm_slope_test(x = data_annual$YEAR, y = data_annual$TA)[c("slope", "p_perm")]
+  # stat.climate[i, 22:23] <- c(sens.slope(data_annual$TA)$estimates, sens.slope(data_annual$TA)$p.value) 
+  # we finally decided to use linear regression, because it is closest to sens' slope and take account of missing years. 
+  stat.climate[i, 18:19] <- summary(lm(data = data_annual, TA ~ YEAR))$coefficient[2, c(1, 4)]
 }
 
 # correlation of these climatic variables?
-cor(stat.climate[, 2:14])
+cor(stat.climate[, c(2:14, 18)])
 
 #---------------------------------------------------SPECTRAL DATA------------------------------------------------
 # Take a look at spectral data
@@ -240,7 +278,7 @@ data.TAS_tot <- read.csv(file.path('data', 'outcome_temp.csv'))
 data.TAS_tot <- data.TAS_tot %>% rename("TAS_tot" = "TAS", "TAS_totp" = "TASp")
 data.TAS <- read.csv(file.path('data', 'outcome_temp_water_gpp.csv'))
 
-acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, 1:8], by = "site_ID") %>% 
+acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, c(1:8, 18)], by = "site_ID") %>% 
   left_join(data.spectral[, c("ID", "EVI", "NDVI", "LAI", "GPP")], by=c("site_ID" = "ID")) %>% 
   left_join(stat.soil[, c('site_ID', 'SOC')], by = "site_ID") %>% 
   left_join(data.TAS_tot[, c('site_ID', 'TAS_tot', 'TAS_totp')], by = "site_ID") %>% 
