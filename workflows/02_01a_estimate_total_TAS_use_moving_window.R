@@ -36,7 +36,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
 site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod",
                    "GF-Guy", "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
                    "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
-                   "BE-Dor", "CA-TP4", "UK-AMo", "Ru-Fyo", "ZA-Kru", "IT-Tor")
+                   "BE-Dor", "CA-TP4", "UK-AMo", "RU-Fyo", "ZA-Kru", "IT-Tor")
 
 for (id in 1:nrow(site_info)) {
   # id = 25
@@ -57,7 +57,13 @@ for (id in 1:nrow(site_info)) {
   
   # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
   if (name_site %in% site_TS_issue) {
-    mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
+    if (name_site %in% c("GF-Guy", "US-Tw1")) {
+      # slope will be too low if using ac data for the tropical and subtropical sites. 
+      mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
+    } else {
+      # using data with TA > 0, because we focus on grouping season
+      mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+    }
     TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
     a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
     TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
@@ -105,6 +111,12 @@ for (id in 1:nrow(site_info)) {
   gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
   tStart <- feature_gs$tStart[feature_gs$site_ID == name_site]
   tEnd <- feature_gs$tEnd[feature_gs$site_ID == name_site]
+  
+  # Correct tStart and tEnd for sites with newly regressed TS
+  if (name_site %in% site_TS_issue) {
+    tStart <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.025), na.rm=T)
+    tEnd <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.975), na.rm=T)
+  }
   
   # decide control year: the year with growing-season TS closest to long-term mean. 
   ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))

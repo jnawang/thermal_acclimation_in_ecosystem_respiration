@@ -24,7 +24,7 @@ site_info <- read.csv(file.path('data', 'site_info.csv'))
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
 
 # put a for loop here
-for (id in 111:nrow(site_info)) {
+for (id in 1:nrow(site_info)) {
   # id = 116
   print(id)
   data_source <- site_info$source[id]
@@ -189,12 +189,9 @@ for (id in 111:nrow(site_info)) {
       # recent data is more accurate
       mod_lm <- lm(data = ac[ac$YEAR > 2021 & ac$TA > 0, ], TS ~ TA, na.action = na.omit)
       ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
-    } else if (name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP")) {     # , "US-Rms"
+    } else if (name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP", "US-Rms", "US-SRS", "US-ChR")) { 
       # cold area, use TA above 0 for growing season
       mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
-      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
-    } else if (name_site %in% c("US-SRS", "US-ChR")) {
-      mod_lm <- lm(data = ac, TS ~ TA, na.action = na.omit)
       ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
     }
   }
