@@ -80,21 +80,9 @@ for (id in 1:nrow(site_info)) {
     site_info$SWC_use[id] = 'YES'
   }
   ###########################################
+  
+  ac$TS <- ac$TA
 
-  # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
-  if (name_site %in% site_TS_issue) {
-    if (name_site %in% c("GF-Guy", "US-Tw1")) {
-      # slope will be too low if using ac data for the tropical and subtropical sites. 
-      mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
-    } else {
-      # using data with TA > 0, because we focus on grouping season
-      mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
-    }
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
-    a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
-    ac$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
-  }
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -139,10 +127,8 @@ for (id in 1:nrow(site_info)) {
   tEnd <- feature_gs$tEnd[feature_gs$site_ID == name_site]
   
   # Correct tStart and tEnd for sites with newly regressed TS
-  if (name_site %in% site_TS_issue) {
-    tStart <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.025), na.rm=T)
-    tEnd <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.975), na.rm=T)
-  }
+  tStart <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.025), na.rm=T)
+  tEnd <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.975), na.rm=T)
   
   # decide control year: the year with growing-season TS closest to long-term mean. 
   ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
@@ -364,6 +350,6 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, file = file.path('data', 'outcome_temp_water_gpp.csv'), row.names = F)
-write.csv(outcome_siteyear, file = file.path('data', 'outcome_siteyear_temp_water_gpp.csv'), row.names = F)
+write.csv(outcome, file = file.path('data', 'outcome_temp_water_gpp_TA.csv'), row.names = F)
+write.csv(outcome_siteyear, file = file.path('data', 'outcome_siteyear_temp_water_gpp_TA.csv'), row.names = F)
 

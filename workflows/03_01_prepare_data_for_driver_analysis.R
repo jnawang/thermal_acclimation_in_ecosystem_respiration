@@ -278,7 +278,7 @@ data.TAS_tot <- read.csv(file.path('data', 'outcome_temp.csv'))
 data.TAS_tot <- data.TAS_tot %>% rename("TAS_tot" = "TAS", "TAS_totp" = "TASp")
 data.TAS <- read.csv(file.path('data', 'outcome_temp_water_gpp.csv'))
 
-acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, c(1:8, 18)], by = "site_ID") %>% 
+acclimation <- site_info[, 1:7] %>% left_join(stat.climate[, c(1:8, 18:19)], by = "site_ID") %>% 
   left_join(data.spectral[, c("ID", "EVI", "NDVI", "LAI", "GPP")], by=c("site_ID" = "ID")) %>% 
   left_join(stat.soil[, c('site_ID', 'SOC')], by = "site_ID") %>% 
   left_join(data.TAS_tot[, c('site_ID', 'TAS_tot', 'TAS_totp')], by = "site_ID") %>% 

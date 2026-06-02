@@ -13,6 +13,7 @@ library(librarian)
 shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesplot, brms, nlme)
 rm(list=ls())
 
+set.seed(123)
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
@@ -85,7 +86,7 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% mutate(DOY_gpp = case_when(HOUR >= 12 ~ DOY,
                                                                                         HOUR < 12 & DOY == min(ac$DOY) ~ DOY, 
                                                                                         HOUR < 12 & DOY != min(ac$DOY) ~ DOY - 1)) %>%
-      left_join(ac_day, by = c("YEAR", "DOY_gpp"="DOY")) %>% select(-"DOY_gpp") %>% filter(!is.na(NEE_daytime1))
+      left_join(ac_day, by = c("YEAR", "DOY_gpp"="DOY")) %>% dplyr::select(-"DOY_gpp") %>% filter(!is.na(NEE_daytime1))
   }
   
   # Deal with sites in southern hemisphere

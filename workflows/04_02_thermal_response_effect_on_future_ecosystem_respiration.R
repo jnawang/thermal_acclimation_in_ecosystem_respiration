@@ -182,4 +182,4 @@ for (i in 1:length(files)) {
 }
 #
 
-write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245_7sites.csv'), row.names = F)
+write.csv(acclimation, file=file.path('data', 'acclimation_data_future_ssp245.csv'), row.names = F)

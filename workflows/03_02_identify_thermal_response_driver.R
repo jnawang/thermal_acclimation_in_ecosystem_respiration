@@ -10,6 +10,8 @@ rm(list=ls())
 #
 acclimation <- read.csv(file.path('data', 'acclimation_data.csv'))
 
+# acclimation <- acclimation %>% filter(warm_rate < 0.2)
+
 #------------------------do some explorations first-----------------------------
 summary(lm(data=acclimation, TAS ~ IGBP))
 summary(lm(data=acclimation, TAS ~ Climate_class))
@@ -226,7 +228,7 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[1:5, 3] <- colMeans(ri_var)
+varImp_output[1:5, 3] <- colMeans(ri_var, na.rm = T)
 varImp_output[1:5, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[1:5, 1] <- 'TAS_direct'
 
@@ -259,7 +261,7 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[6:10, 3] <- colMeans(ri_var)
+varImp_output[6:10, 3] <- colMeans(ri_var, na.rm = T)
 varImp_output[6:10, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[6:10, 1] <- 'TAS_tot'
 
@@ -345,7 +347,7 @@ varImpPlot(rf0, sort=TRUE, n.var=min(30, nrow(rf0$importance)),
            type=1, class=NULL, scale=TRUE,
            main='Relative importance')
 
-varImp_output[11:15, 3] <- colMeans(ri_var)
+varImp_output[11:15, 3] <- colMeans(ri_var, na.rm = T)
 varImp_output[11:15, 2] <- rownames(randomForest::importance(rf0, type=1, scale=TRUE))
 varImp_output[11:15, 1] <- 'TAS_app'
 # this is opposite: MATA, SOC, and LAI are most important. 
