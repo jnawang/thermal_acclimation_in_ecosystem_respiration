@@ -35,7 +35,7 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
 
 # Below are sites whose inter-annual TS was not strongly correlated to inter-annual TA, so use TA to obtain TS by linear regression. 
 site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod",
-                   "GF-Guy", "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
+                   "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
                    "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
                    "BE-Dor", "CA-TP4", "UK-AMo", "RU-Fyo", "ZA-Kru", "IT-Tor")
 
@@ -58,8 +58,8 @@ for (id in 1:nrow(site_info)) {
   
   # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
   if (name_site %in% site_TS_issue) {
-    if (name_site %in% c("GF-Guy", "US-Tw1")) {
-      # slope will be too low if using ac data for the tropical and subtropical sites. 
+    if (name_site %in% c("US-Tw1")) {
+      # slope will be too low if using ac data for the subtropical wetland sites. 
       mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
     } else {
       # using data with TA > 0, because we focus on grouping season

@@ -13,8 +13,8 @@ shelf(dplyr, lubridate)
 rm(list=ls())
 
 ####################Attention: change this directory based on your own directory of raw data
-dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-# dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
+dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
 
 files_FLUXNET2015  <- list.files(path=file.path(dir_rawdata, 'SiteData', 'FLUXNET2015', "unzip"), pattern = "_FLUXNET2015_FULLSET_(HH|HR)_", full.names = TRUE)
@@ -98,6 +98,10 @@ for (id in 1:nrow(site_info)) {
     mod2 <- lm(data = a[90000:245000,], TS_F_MDS_1 ~ TS_F_MDS_2)
     a$TS_F_MDS_1[a$YEAR <= 2005] <- predict(mod2, data.frame(TS_F_MDS_2 = pred2))
     a$TS_F_MDS_1_QC[a$YEAR <= 2005] <- 2
+  } else if (name_site == "GF-Guy") {
+    # use air temperature for this tropical site so that all tropical sites, we used bottom air temperature. 
+    a$TS_F_MDS_1 <- a$TA_F_MDS
+    a$TS_F_MDS_1_QC <- a$TA_F_MDS_QC
   }
   
   # FLUXNET data do not include soil data for Site FR-Pue, but site PI provided the SWC data
