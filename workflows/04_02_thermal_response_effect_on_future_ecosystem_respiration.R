@@ -35,7 +35,7 @@ acclimation$NEE_night_mod_fa <- 0
 #
 priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
-  brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
+  brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.02, ub = 0.0)
 
 frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
 param <- alpha+beta+C0 ~ 1

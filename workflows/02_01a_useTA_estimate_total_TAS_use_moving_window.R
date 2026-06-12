@@ -57,6 +57,8 @@ for (id in 1:nrow(site_info)) {
   }
   
   ac$TS <- ac$TA
+  a_measure_night_complete$TS <- a_measure_night_complete$TA
+  a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(TS))
   
  
   # calculate daily daytime NEE and rolling average

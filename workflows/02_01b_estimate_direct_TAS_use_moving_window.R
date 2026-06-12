@@ -210,16 +210,10 @@ for (id in 1:nrow(site_info)) {
         priors$prior[priors$nlpar == 'Hs'] <- paste0("normal(", min(exp(coefficients(mod_nls)["Hs_ln"]), 1000), ", 10)")
       }
     }
-
-    if (nrow(data) > 300) { 
-      data_subset <- data[sample(1:nrow(data), 300), ]  # save time for first model estimate
-    } else {
-      data_subset <- data
-    }
     
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                      prior = priors, data = data_subset, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                      prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
                       control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
 
@@ -254,6 +248,10 @@ for (id in 1:nrow(site_info)) {
       
       # determine if there are enough data for the regression of each year
       data_subset <- data[data$growing_year == iyear, ]
+      
+      # skip a year if no observation during this window
+      if (nrow(data_subset) <= 0) { next }
+      
       # two rules are needed:
       # rule 1: total number of points > 100. 
       # rule 2: TSref is within the 0.025 and 0.975 quantiles. 
@@ -277,7 +275,7 @@ for (id in 1:nrow(site_info)) {
       if (!between(TSref, quantile(data_subset$TS, 0.025, na.rm=T), quantile(data_subset$TS, 0.975, na.rm=T))) { next }
       
       # ensure nighttime NEE is positive
-      if (median(data_subset$NEE) < 0.2) { next }
+      if (median(data_subset$NEE) < 0.2 | mean(data_subset$NEE) < 0.2) { next }
       
       mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 

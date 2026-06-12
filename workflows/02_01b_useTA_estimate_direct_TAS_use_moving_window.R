@@ -51,6 +51,7 @@ site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "
                    "BE-Dor", "CA-TP4", "UK-AMo", "RU-Fyo", "ZA-Kru", "IT-Tor")
   
 for (id in 1:nrow(site_info)) {
+# for (id in rev(seq_len(nrow(site_info)))) {
   # id = 27
   print(id)
   name_site <- site_info$site_ID[id]
@@ -82,6 +83,8 @@ for (id in 1:nrow(site_info)) {
   ###########################################
   
   ac$TS <- ac$TA
+  a_measure_night_complete$TS <- a_measure_night_complete$TA
+  a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(TS))
 
   
   # calculate daily daytime NEE and rolling average

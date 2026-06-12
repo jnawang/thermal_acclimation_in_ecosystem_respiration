@@ -310,22 +310,35 @@ for (id in 1:nrow(site_info)) {
   # Rg should not have negative values.
   EProc$sSetLocationInfo(LatDeg = lat_site, LongDeg = long_site, TimeZoneHour = tz$utc_offset_h)
   #
-  ac_u$season <- usCreateSeasonFactorYdayYear(
-    ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min.
-  #
-  uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+  # estimated Ustar threshold is too small for this site, using yearly estimate
+  if (name_site == "US-ChR") {
+    # use default season, and yearly threshold
+    uStarTh <- EProc$sEstUstarThold()
+    
+    EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
+    ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
+    #
+    ac_u <- ac_u %>% mutate(seasonYear = year(DateTime)) %>% 
+      left_join(uStarTh[uStarTh$aggregationMode == 'year', c(2, 4)], by="seasonYear")
+  } else {
+    ac_u$season <- usCreateSeasonFactorYdayYear(
+      ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min.
+    #
+    uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+    
+    # gap fill NEE, air temperature and soil temperature
+    # By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
+    # we can also use a different threshold for each of the defined seasons, by calling the two functions
+    # EProc$useSeaonsalUStarThresholds()
+    # EProc$sGetUstarScenarios()
+    # I only want annually aggregated estimated, because some sites have no seasonal estimates
+    EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
+    ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
+    #
+    ac_u <- ac_u %>% left_join(uStarTh[,3:4], by="season")
+  }
+  ac$uStarTh <- ac_u$uStar  
   
-  # gap fill NEE, air temperature and soil temperature
-  # By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
-  # we can also use a different threshold for each of the defined seasons, by calling the two functions
-  # EProc$useSeaonsalUStarThresholds()
-  # EProc$sGetUstarScenarios()
-  # I only want annually aggregated estimated, because some sites have no seasonal estimates
-  EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
-  ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
-  #
-  ac_u <- ac_u %>% left_join(uStarTh[,3:4], by="season")
-  ac$uStarTh <- ac_u$uStar
   #
   #########################################end with Ustar filtering#######################################
   if (site_info$SWC_use[id] == 'YES') {
@@ -421,7 +434,7 @@ for (id in 1:nrow(site_info)) {
   # }
 
   years2remove_automation <- setdiff(ac$YEAR[1]:ac$YEAR[nrow(ac)], good_years)
-
+  
   # years to remove due to PI reported disturbances and bad data quality
   year_str <- site_info$year_removed[id]
   year_parts <- strsplit(year_str, ",")[[1]]
