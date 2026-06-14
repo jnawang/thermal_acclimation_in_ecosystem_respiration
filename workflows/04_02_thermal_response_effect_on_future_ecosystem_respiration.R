@@ -74,7 +74,7 @@ for (i in 1:length(files)) {
     # plot(a_measure_night_complete$TS[a_measure_night_complete$YEAR == 2009], a_measure_night_complete$NEE[a_measure_night_complete$YEAR == 2009], main = paste0(i, name_site))
     
     # recalculate TS_TA relationship using TA threshold
-    if (!name_site %in% c('GF-Guy', 'US-Tw1')) {
+    if (!name_site %in% c('US-Tw1')) {
       tmp <- ac %>% filter(TA > 0)     # only use the data with TA > 0C; use another range to calculate the coefficient
     } else {
       # tropical and subtropical site: its values are obtained using observed temperature only.

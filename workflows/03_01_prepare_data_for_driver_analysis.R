@@ -184,10 +184,13 @@ for (i in 1:length(files)) {
   stat.climate[i, 14] <- mean(data_1year_rg$TS)
   
   # Warming rates
-  data_annual  <- ac %>% filter(YEAR %in% good_years) %>% group_by(YEAR) %>% summarise(TA=mean(TA, na.rm=T), .groups = 'drop')
+  data_annual  <- ac %>% filter(YEAR %in% good_years) %>% group_by(YEAR) %>% summarise(TA=mean(TA, na.rm=T), TS=mean(TS, na.rm=T), .groups = 'drop')
   # stat.climate[i, 18:19] <- mblm_slope_test(x = data_annual$YEAR, y = data_annual$TA)[c("slope", "p_perm")]
   # stat.climate[i, 22:23] <- c(sens.slope(data_annual$TA)$estimates, sens.slope(data_annual$TA)$p.value) 
-  # we finally decided to use linear regression, because it is closest to sens' slope and take account of missing years. 
+  # we finally decided to use linear regression, because it is closest to sens' slope and take account of missing years.
+  if (name_site == "CH-Aws") {
+    data_annual <- data_annual %>% filter(YEAR >= 2015)
+  }
   stat.climate[i, 18:19] <- summary(lm(data = data_annual, TA ~ YEAR))$coefficient[2, c(1, 4)]
 }
 
