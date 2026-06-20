@@ -15,6 +15,7 @@ rm(list=ls())
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+# dir_rawdata <- '/Users/junnawang/YaleLab/data_server'
 ####################End Attention
 
 files_AmeriFlux_BASE <- list.files(file.path(dir_rawdata, "SiteData", "AmeriFlux_BASE"), pattern=".zip$", full.names = T)

@@ -16,7 +16,8 @@ rm(list=ls())
 set.seed(123)
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+# dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+dir_rawdata <- '/Users/junnawang/YaleLab/data_server'
 ####################End Attention
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
@@ -248,9 +249,6 @@ for (id in 1:nrow(site_info)) {
       
       # determine if there are enough data for the regression of each year
       data_subset <- data[data$growing_year == iyear, ]
-      
-      # skip a year if no observation during this window
-      if (nrow(data_subset) <= 0) { next }
       
       # two rules are needed:
       # rule 1: total number of points > 100. 

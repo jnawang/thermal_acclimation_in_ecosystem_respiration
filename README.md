@@ -23,9 +23,9 @@
     -   Exports 46 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
     -   Exports 1 csv file containing the start and end date of growing seasons at all EuroFlux sites.
 -   `01_02b_filter_high_quality_night_respiration_AmeriFlux`:
-    -   Prepares data for fitting temperature-respiration curves for 64 AmeriFlux sites.
-    -   Exports 64 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
-    -   Exports 64 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
+    -   Prepares data for fitting temperature-respiration curves for 71 AmeriFlux sites.
+    -   Exports 71 csv files containing gap-filled subhourly meteorological and NEE time series (one file per site).
+    -   Exports 71 csv files containing measured high-quality subhourly nightlight NEE and corresponding meteorological data (one file per site).
     -   Exports 1 csv file containing the start and end date of growing seasons at all AmeriFlux sites.
 
 2.  Calculate Thermal Response Strength (TAS) for All Sites
@@ -39,6 +39,10 @@
 -   `02_02_compare_different_TAS.R`:
     -   Explores how *total* and *direct* thermal response strengths vary with climate class and vegetation class.
     -   No export.
+-   `02_03_simulation_test_identifiability_indirect_effects.R`:
+    -   a simulation experiment to demonstrate that direct and indirect thermal responses can be disentangled with known contributions
+    -   exports two csv files (simulation_identifiability_replications.csv and simulation_identifiability_summary.csv) containing parameter estimates of each replicate and summarizeed total, direct, indirect estimates of each scenario.
+    -   exports one figure on identified direct and indirect effects in the figures folder (tas_identifiability_simulation.png)
 
 3.  Identify Drivers of Total and Direct Thermal Response Strength
 
@@ -61,30 +65,32 @@
 
 ## How to reproduce the workflow:
 
-1.  Download raw data required for this project (All data are now uploaded on Zenodo with DOI: 10.5281/zenodo.18095996).
+1.  Download raw data required for this project (All data are now uploaded on Zenodo with DOI: 10.5281/zenodo.18095996; please use data from the most recent release to match script updates).
 
--   1.1 Download raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
+-   raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
 
--   1.2 Download ERA5 daily soil water content data in 1990-2014 for all sites from <https://cds.climate.copernicus.eu/>
+-   ERA5-Land daily soil water content data in 1990-2024 for all sites
 
--   1.3 Download global soil carbon stock map from soilwise: <https://repository.soilwise-he.eu/cat/collections/metadata:main/items/7730e747-eb73-49c9-bfe6-84ebae718743>
+-   global soil carbon stock map from FAO soils portal
 
--   1.4 Download remotely sensed vegetation index (NDVI and EVI), gpp, lai, and fpar for all sites using site coordinates from NASA earth data: <https://www.earthdata.nasa.gov/data/tools/appeears>
+-   remotely sensed vegetation index (NDVI and EVI), gpp, lai, and fpar for all sites using site coordinates from NASA earth data
 
--   1.5 Download BADM Data Product of all AmeriFlux sites: <https://ameriflux.lbl.gov/data/badm/>
+-   BADM Data Product of all AmeriFlux sites
 
--   1.6 Download future global climate data from worldclimate: <https://www.worldclim.org/data/cmip6/cmip6climate.html>
+-   future global climate data from worldclimate
 
-2.  Use the *site_info.csv* file in *data* folder to get started.
+2.  Use the **site_info.csv** file in *data* folder to run every script.
 
--   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each flux file
--   It is pre-required to run the workflow.
+-   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each raw flux file
+-   It is pre-required to run all the workflows from the step 01_01.
 
-3.  cmdstanr should be installed in order to run some scripts in the *workflows* folder. Please refer to this page for cmdstanr installment. <https://mc-stan.org/cmdstanr/articles/cmdstanr.html>
+3.  **cmdstanr** should be installed in order to run some scripts in the *workflows* folder. Please refer to this page for *cmdstanr* installment. <https://mc-stan.org/cmdstanr/articles/cmdstanr.html>
 
-4.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
+4.  The instruction of installing the package **amerifluxr**, as it was taken off CRAN: *devtools::install_github("chuhousen/amerifluxr")*
 
-5.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.
+5.  Scripts in the *workflows* folder should be executed in numerical order. The scrips that share the same number but have different letters (e.g., 01_02a and 01_02b) can be run in parallel.
+
+6.  In the beginning of each script, it states the approximate time for running that script. The time is tested on a Mac mini, so it may vary on different computers.
 
 ## Demonstration data and scripts for one site: US-Kon
 

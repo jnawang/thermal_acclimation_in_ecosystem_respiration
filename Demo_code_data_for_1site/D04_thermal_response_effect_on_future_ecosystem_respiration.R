@@ -70,12 +70,13 @@ for (i in 1:length(files)) {
     # plot(a_measure_night_complete$TS[a_measure_night_complete$YEAR == 2009], a_measure_night_complete$NEE[a_measure_night_complete$YEAR == 2009], main = paste0(i, name_site))
     
     # recalculate TS_TA relationship using TA threshold
-    if (name_site!='GF-Guy') {
+    if (!name_site %in% c('US-Tw1')) {
       tmp <- ac %>% filter(TA > 0)     # only use the data with TA > 0C; use another range to calculate the coefficient
-      acclimation$TS_TA[iacclimation] <- summary(lm(data=tmp, TS~TA))$coefficients[2,1]
     } else {
-      acclimation$TS_TA[iacclimation] <- 0.3113     # tropical site: its values are obtained using observed temperature only.
+      # tropical and subtropical site: its values are obtained using observed temperature only.
+      tmp <- a_measure_night_complete %>% filter(TA > 0)
     }
+    acclimation$TS_TA[iacclimation] <- summary(lm(data=tmp, TS~TA))$coefficients[2,1]
     #
     night_pattern <- ac %>% filter(YEAR %in% good_years & !daytime) %>% group_by(DOY, HOUR, MINUTE, MONTH) %>% 
       summarise(TAp=mean(TA, na.rm=T), TSp=mean(TS, na.rm=T), SWC=mean(SWC, na.rm=T), .groups = 'drop')

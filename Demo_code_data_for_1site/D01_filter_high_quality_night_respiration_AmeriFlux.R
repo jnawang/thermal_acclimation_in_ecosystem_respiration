@@ -35,7 +35,7 @@ for (file in files_AmeriFlux_BASE) {
     # combine TS data at two depth
     a$TS_2_1_1[is.na(a$TS_2_1_1)] <- a$TS_2_2_1[is.na(a$TS_2_1_1)] * 0.9324892 + 0.9077066
   }
-
+  
   ######################################decide day or night for every TIMESTAMP#######################################
   # get site long and lat
   sites <- amf_site_info()
@@ -51,7 +51,7 @@ for (file in files_AmeriFlux_BASE) {
   }
   
   # get sunrise and sunset time
-    sunrise_set <- getSunlightTimes(
+  sunrise_set <- getSunlightTimes(
     date = seq.Date(as.Date(a$TIMESTAMP[1]), as.Date(a$TIMESTAMP[nrow(a)]), by = 1),       # Date format: YYYY-MM-DD
     keep = c("sunrise", "sunset"),
     lat = lat_site,
@@ -65,7 +65,7 @@ for (file in files_AmeriFlux_BASE) {
   # ensure each row represents the same date
   sunrise_set$sunrise <- as.POSIXct(as.character(sunrise_set$sunrise), tz='GMT') + difftime(sunrise_set$date[iday_sun], as_date(sunrise_set$sunset[iday_sun]))
   sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT') + difftime(sunrise_set$date[iday_sun], as_date(sunrise_set$sunset[iday_sun]))
-
+  
   # if in southern Hemisphere, so we need to change DOY values
   southern_hemisphere = FALSE
   if (name_site %in% c()) {
@@ -117,7 +117,7 @@ for (file in files_AmeriFlux_BASE) {
   }
   
   if (name_site == 'US-Ha2') {
-  # combine data from two locations
+    # combine data from two locations
     a$FC_A_1_1 <- a$FC_1_1_1
     a$FC_A_1_1[is.na(a$FC_A_1_1)] <- a$FC_2_1_1[is.na(a$FC_A_1_1)]
     a$TA_A_1_1 <- a$TA_1_1_1
@@ -175,6 +175,14 @@ for (file in files_AmeriFlux_BASE) {
     } else if (name_site == "US-MBP") {
       # this site only missed a few TS data, so only estimate these missing data.
       ac$TS[is.na(ac$TS)] <- ac$TA[is.na(ac$TS)] * 0.3688005 + 5.8670273
+    } else if (name_site == "US-BZo") {
+      # recent data is more accurate
+      mod_lm <- lm(data = ac[ac$YEAR > 2021 & ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
+    } else if (name_site %in% c("CA-ARB", "CA-ARF", "CA-KLP", "US-Rms", "US-SRS", "US-ChR")) { 
+      # cold area, use TA above 0 for growing season
+      mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+      ac$TS <- predict(mod_lm, newdata = data.frame(TA = ac$TA))
     }
   }
   
@@ -246,7 +254,7 @@ for (file in files_AmeriFlux_BASE) {
   ##########################################do Ustar filtering#############################################
   NEE_yearly <- ac %>% group_by(DOY) %>% summarise(NEE=mean(NEE, na.rm=T), TS=mean(TS, na.rm=T))
   NEE_yearly_night <- ac %>% filter(!daytime) %>% group_by(DOY) %>% summarise(NEE=mean(NEE, na.rm=T), TS=mean(TS, na.rm=T))
-
+  
   # I will use the mean of the first three values, and the mean of the last three values
   tmp    <- NEE_yearly %>% filter(NEE < min(NEE_yearly$NEE, na.rm=T) * 0.2)
   #
@@ -276,14 +284,14 @@ for (file in files_AmeriFlux_BASE) {
   ac_u$Rg    <- ac$SW_IN
   ac_u$Tair  <- ac$TA
   ac_u$Ustar <- ac$USTAR
-
+  
   if (convert_RH_VPD) {
     ac_u$rH    <- ac$RH
     ac_u$VPD <- fCalcVPDfromRHandTair(ac_u$rH, ac_u$Tair)
   } else {
     ac_u$VPD <- ac$VPD
   }
-
+  
   if (dt == 1) {
     EProc <- sEddyProc$new(name_site, ac_u, c('NEE', 'Rg', 'Tair', 'VPD', 'Ustar'), DTS.n=24)
   } else {
@@ -292,22 +300,35 @@ for (file in files_AmeriFlux_BASE) {
   # Rg should not have negative values.
   EProc$sSetLocationInfo(LatDeg = lat_site, LongDeg = long_site, TimeZoneHour = tz$utc_offset_h)
   #
-  ac_u$season <- usCreateSeasonFactorYdayYear(
-    ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min.
-  #
-  uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+  # estimated Ustar threshold is too small for this site, using yearly estimate
+  if (name_site == "US-ChR") {
+    # use default season, and yearly threshold
+    uStarTh <- EProc$sEstUstarThold()
+    
+    EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
+    ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
+    #
+    ac_u <- ac_u %>% mutate(seasonYear = year(DateTime)) %>% 
+      left_join(uStarTh[uStarTh$aggregationMode == 'year', c(2, 4)], by="seasonYear")
+  } else {
+    ac_u$season <- usCreateSeasonFactorYdayYear(
+      ac_u$DateTime - 15*60, starts = seasonStarts)  # it sets back 15 min.
+    #
+    uStarTh <- EProc$sEstUstarThold(seasonFactor = ac_u$season)
+    
+    # gap fill NEE, air temperature and soil temperature
+    # By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
+    # we can also use a different threshold for each of the defined seasons, by calling the two functions
+    # EProc$useSeaonsalUStarThresholds()
+    # EProc$sGetUstarScenarios()
+    # I only want annually aggregated estimated, because some sites have no seasonal estimates
+    EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
+    ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
+    #
+    ac_u <- ac_u %>% left_join(uStarTh[,3:4], by="season")
+  }
+  ac$uStarTh <- ac_u$uStar  
   
-  # gap fill NEE, air temperature and soil temperature
-  # By default the gap-filling uses annually aggregated estimates of uStar-Threshold.
-  # we can also use a different threshold for each of the defined seasons, by calling the two functions
-  # EProc$useSeaonsalUStarThresholds()
-  # EProc$sGetUstarScenarios()
-  # I only want annually aggregated estimated, because some sites have no seasonal estimates
-  EProc$sMDSGapFillAfterUstar('NEE', FillAll = FALSE, isVerbose = FALSE)
-  ac$NEE_uStar_f <- EProc$sExportResults()$NEE_uStar_f
-  #
-  ac_u <- ac_u %>% left_join(uStarTh[,3:4], by="season")
-  ac$uStarTh <- ac_u$uStar
   #
   #########################################end with Ustar filtering#######################################
   if (site_info$SWC_use[id] == 'YES') {
@@ -338,7 +359,7 @@ for (file in files_AmeriFlux_BASE) {
       print(i)
     }
   }
-
+  
   # save site-specific TS~NEE curve
   # png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
   # par(mfrow = c(2, 2))
@@ -358,12 +379,12 @@ for (file in files_AmeriFlux_BASE) {
     gap_max_thresh <- max(31, (gEnd-gStart+1) * 0.225)
     gap_total_thresh <- max(1/3, gap_max_thresh / (gEnd-gStart+1))
   }
-
+  
   # find long gap years
   a_check_gaps <- a_measure_night_complete[, c("TIMESTAMP", "DOY")]
   yStart <- a_measure_night_complete$YEAR[1]
   yEnd   <- a_measure_night_complete$YEAR[nrow(a_measure_night_complete)]
-
+  
   # adding the start and end of growing season date
   if (southern_hemisphere) {
     gStart_original <- ifelse(gStart > 366, gStart-366, gStart)
@@ -377,7 +398,7 @@ for (file in files_AmeriFlux_BASE) {
                              DOY = c(rep(gStart, yEnd - yStart + 1), rep(gEnd, yEnd - yStart + 1)))
   } 
   a_check_gaps <- a_check_gaps %>% rbind(a_gs_dates) %>% unique %>% arrange(TIMESTAMP)
-
+  
   good_years <- a_check_gaps %>%
     mutate(growing_year = case_when(DOY <= 366 ~ year(TIMESTAMP),
                                     TRUE ~ year(TIMESTAMP) - 1)) %>%
@@ -391,7 +412,7 @@ for (file in files_AmeriFlux_BASE) {
     summarise(gap_max = max(gap, na.rm=T), gap_total = sum(gap_large, na.rm=T) / (gEnd - gStart + 1)) %>%
     filter(gap_max < gap_max_thresh &  gap_total < gap_total_thresh) %>%
     distinct(growing_year) %>% pull()
-
+  
   # # ensure every degree of TS have measurements
   # bad_TS_years <- a_measure_night_complete %>% filter(between(TS, tStart, tEnd)) %>%
   #   arrange(YEAR, TS) %>% group_by(YEAR) %>%
@@ -401,9 +422,9 @@ for (file in files_AmeriFlux_BASE) {
   # if (length(bad_TS_years) >= 1) {
   #   good_years <- setdiff(good_years, bad_TS_years)
   # }
-
+  
   years2remove_automation <- setdiff(ac$YEAR[1]:ac$YEAR[nrow(ac)], good_years)
-
+  
   # years to remove due to PI reported disturbances and bad data quality
   year_str <- site_info$year_removed[id]
   year_parts <- strsplit(year_str, ",")[[1]]
@@ -419,7 +440,7 @@ for (file in files_AmeriFlux_BASE) {
   if (length(years2remove) >= 1) {
     good_years <- setdiff(good_years, years2remove)
   }
-
+  
   ############################prepare to output two datasets: a_measure_night_complete and ac#######################################
   # we can only use TS > 2C for some sites, because data quality issue below TS < 2C 
   if (name_site %in% c("US-Ha1", "US-GLE")) {
@@ -430,11 +451,11 @@ for (file in files_AmeriFlux_BASE) {
   a_measure_night_complete <- a_measure_night_complete %>% 
     filter(YEAR %in% good_years) %>%
     dplyr::select(c(YEAR, MONTH, DAY, DOY, HOUR, MINUTE, NEE, TA, TS, SWC))
-
+  
   iStart = a_measure_night_complete$YEAR[1]
   iEnd   = a_measure_night_complete$YEAR[nrow(a_measure_night_complete)]
   ac <- ac %>% filter(between(YEAR, iStart, iEnd)) %>% dplyr::select(c(YEAR, MONTH, DAY, DOY, HOUR, MINUTE, NEE_uStar_f, TA, TS, SWC, SW_IN, daytime))
-
+  
   # I have to gap fill TA, TS, NEE;
   T_gf <- ac %>% group_by(DOY, HOUR, MINUTE) %>% summarise(TA_gf=mean(TA, na.rm=T), TS_gf=mean(TS, na.rm=T), NEE_gf=mean(NEE_uStar_f, na.rm=T))  # for gap fill only.
   # ensure no NA values
@@ -448,7 +469,7 @@ for (file in files_AmeriFlux_BASE) {
   if (!"TA_gf" %in% colnames(ac)) {
     ac   <- ac %>% left_join(T_gf, by=c("DOY", "HOUR", "MINUTE"))
   }
-
+  
   if (sum(is.na(ac$TA)) > 0) {
     ac$TA[is.na(ac$TA)] <- ac$TA_gf[is.na(ac$TA)]
   }
@@ -458,11 +479,11 @@ for (file in files_AmeriFlux_BASE) {
   if (sum(is.na(ac$NEE_uStar_f)) > 0) {
     ac$NEE_uStar_f[is.na(ac$NEE_uStar_f)] <- ac$NEE_gf[is.na(ac$NEE_uStar_f)]
   }
-
+  
   # save the ac and a_measure_night_complete data:
   write.csv(ac, file=file.path(dir_rawdata, paste0(name_site, '_ac.csv')), row.names = F)
   write.csv(a_measure_night_complete, file=file.path(dir_rawdata, paste0(name_site, '_nightNEE.csv')), row.names = F)
-
+  
   feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=max(tStart, 0.0), tEnd=tEnd, nyear=length(good_years)))
 }
 

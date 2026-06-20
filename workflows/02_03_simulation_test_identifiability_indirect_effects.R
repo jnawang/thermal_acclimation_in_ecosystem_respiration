@@ -2,31 +2,17 @@
 # with simulation experiments where the true contributions are known.
 # It also includes a confounded case showing when the apparent residual is not
 # interpretable as pure mediation via SWC and GPP.
-#
+# 
+# Authors: Sparkle Malone and Junna Wang in May, 2026.
 # It takes about 1-2 minutes to run on a laptop.
 
-
-# To be done:
-# remove site effect
-# parameters should be realistic
-# give a plot like Fig. 1. using produced data. 
-# most of the relationship is linear
-
-
-# Understand this well: 
-# for a specific site, we need to have T~ER relationship; 
-# 4 windows, 8 years, 
+# Content of this script: 
+# for a virtue site, we need to have T~ER relationship as ER = exp(0.0588 * T)
+# this site has 4 windows, 8 years
 # for each window, we have reference temperature, SWC, and GPP of each window, we calculate reference ER
-# for each year within a window, for direct effect, we added warming signal's effects to reference 
-# ER = exp(0.0588 * T)
-
-# We need TS, ER for each site year
-
-
-
-# what we need to do is to produce ER values for each window years. 
-# do we want to have raw data
-# to be persuasive, we should be able to plot these data on a figure
+# we designed four scenarios: direct effect only, measured indirect effect only, 
+# direct + measured indirect, direct + measured indirect + hidden indirect. 
+# each scenario has 40 replicates. 
 
 rm(list = ls())
 
