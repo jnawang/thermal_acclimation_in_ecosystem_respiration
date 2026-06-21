@@ -2,17 +2,17 @@
 
 ## Project objectives:
 
-**1.** Develop an algorithm to estimate site-level total and direct thermal response strength in ecosystem respiration (ER) using global eddy-covariance data.
+**1.** Develop algorithms to estimate site-specific total and direct thermal response strength in ecosystem respiration (ER) using global eddy-covariance data.
 
-**2.** Estimate total and direct thermal response strength at 110 terrestrial ecosystems.
+**2.** Estimate total and direct thermal response strength at 117 terrestrial ecosystems.
 
-**3.** Identify drivers of direct and total thermal response strength.
+**3.** Identify drivers of total and direct thermal response strength.
 
-**4.** Predict how thermal responses will influence future warming-induced increases in ER.
+**4.** Predict how thermal responses will influence future warming-induced change in ER.
 
 ## Structure of R Scripts in *workflows*:
 
-1.  Data Preparation for Thermal Response Estimates
+1.  Data Preparation for the Estimates of Thermal Response Strength
 
 -   `01_01_estimate_soil_temperature_at_some_sites.R`:
     -   Estimates top soil (\<10 cm) temperature at sites with lots of missing soil temperature data.
@@ -41,7 +41,7 @@
     -   No export.
 -   `02_03_simulation_test_identifiability_indirect_effects.R`:
     -   a simulation experiment to demonstrate that direct and indirect thermal responses can be disentangled with known contributions
-    -   exports two csv files (simulation_identifiability_replications.csv and simulation_identifiability_summary.csv) containing parameter estimates of each replicate and summarizeed total, direct, indirect estimates of each scenario.
+    -   exports two csv files (simulation_identifiability_replications.csv and simulation_identifiability_summary.csv) containing parameter estimates of each replicate and summarized total, direct, indirect thermal response estimates of each scenario.
     -   exports one figure on identified direct and indirect effects in the figures folder (tas_identifiability_simulation.png)
 
 3.  Identify Drivers of Total and Direct Thermal Response Strength
@@ -65,7 +65,7 @@
 
 ## How to reproduce the workflow:
 
-1.  Download raw data required for this project (All data are now uploaded on Zenodo with DOI: 10.5281/zenodo.18095996; please use data from the most recent release to match script updates).
+1.  Download all following raw data required for this project (All data have been uploaded on Zenodo with DOI: 10.5281/zenodo.18095996; please use data from the most recent release to match script updates).
 
 -   raw eddy covariance data from FLUXNET2015, FLUXNET2020, FLUXNET07202025, and ICOS (Ecosystem final quality (L2) product in ETC-Archive format - release 2025-1)
 
@@ -81,7 +81,7 @@
 
 2.  Use the **site_info.csv** file in *data* folder to run every script.
 
--   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, key variable names in each raw flux file
+-   This file includes basic information for each site, including lat, long, IGBP, climate class, availability of measured SWC, and key variable names in each raw flux file
 -   It is pre-required to run all the workflows from the step 01_01.
 
 3.  **cmdstanr** should be installed in order to run some scripts in the *workflows* folder. Please refer to this page for *cmdstanr* installment. <https://mc-stan.org/cmdstanr/articles/cmdstanr.html>

@@ -8,7 +8,7 @@ This **README** includes how to run the scripts in this demonstration folder and
 
 -   How to install cmdstanr and CmdStan? please refer to this page: <https://mc-stan.org/cmdstanr/articles/cmdstanr.html>
 
-**Step 3**: Please run the five R scripts starting with D0 in the numerical order. For each script, the time needed to run is listed in the beginning.
+**Step 3**: Please run the five R scripts starting with D0 in the numerical order. For each script, the time needed to run is listed in the beginning, but the actual running time is machine-dependent.
 
 Here is the **introduction** of the 5 scripts:
 
@@ -34,6 +34,6 @@ Here is the **introduction** of the 5 scripts:
 
 -   Exports 1 csv file containing projected future nighttime ecosystem respiration, with and without considering thermal response strength (acclimation_data_future_ssp245_1site.csv).
 
-**Note**: you may want to compare your results for this site with author's complete results for all sites in acclimation_data.csv and acclimation_data_future_ssp245.csv.
+**Note**: you may want to compare your results for this site with author's complete results for all sites in acclimation_data.csv and acclimation_data_future_ssp245.csv. Small differences between your result and that posted here at the fourth decimal place or lower are expected, because the parameters were estimated using a Bayesian method.
 
-It takes \~1 hour to finish running the five scripts. Thank you!
+It takes \~1 hour to finish running the five scripts on a MacBook Pro. Thank you!
