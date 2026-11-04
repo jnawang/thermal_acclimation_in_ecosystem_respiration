@@ -12,10 +12,12 @@ library(librarian)
 shelf(dplyr, lubridate)
 rm(list=ls())
 
+source(file.path("workflows", "00_functions.R"))
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 ####################End Attention
+shuttle_dir = file.path(dir_rawdata, 'SiteData', 'FLUXNET_Shuttle09102026', "unzip")
 
 files_FLUXNET2015  <- list.files(path=file.path(dir_rawdata, 'SiteData', 'FLUXNET2015', "unzip"), pattern = "_FLUXNET2015_FULLSET_(HH|HR)_", full.names = TRUE)
 files_FLUXNET2020  <- list.files(path=file.path(dir_rawdata, 'SiteData', 'FLUXNET2020', "unzip"), pattern = "_FLUXNET2015_FULLSET_(HH|HR)_", full.names = TRUE)
@@ -25,7 +27,7 @@ files_ICOS2025 <- list.files(file.path(dir_rawdata, "SiteData", "Ecosystem final
 
 site_info <- read.csv(file.path('data', 'site_info.csv'))
 
-feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), tStart=double(), tEnd=double(), nyear=integer())  # growing season feature
+feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), taStart=double(), taEnd=double(), tsStart=double(), tsEnd=double(), nyear=integer())  # growing season feature
 
 # put a for loop here 
 for (id in 1:nrow(site_info)) {
@@ -33,7 +35,7 @@ for (id in 1:nrow(site_info)) {
   print(id)
   data_source <- site_info$source[id]
   # This script only works for FLUXNET products
-  if (data_source %in% c("AmeriFlux_BASE")) {
+  if (data_source %in% c("AmeriFlux_BASE", "FLUXNET_Shuttle", "self_compile")) {
     next
   }
   
@@ -79,44 +81,15 @@ for (id in 1:nrow(site_info)) {
   a$HOUR  <- hour(a$TIMESTAMP)
   a$MINUTE <- minute(a$TIMESTAMP)
 
-  # read soil temperature data, or use specific soil temperature data for some sites. 
-  if (name_site %in% c('CZ-Stn')) {
-    a$TS_F_MDS_1 <- a$TS_F_MDS_2  # use TS of second layer because the first layer is incomplete
-    a$TS_F_MDS_1_QC <- a$TS_F_MDS_2_QC
-  } else if (name_site %in% c("FR-Fon", "CH-Dav", "DE-Akm", "DE-Hte", "FR-Bil", "FR-Pue", "FR-FBn", "CZ-RAJ")) {
-    df_TS <- read.csv(file=file.path(dir_rawdata, 'TS_RandomForest', paste0(name_site, '_TS_rfp.csv')))
-    df_TS$TIMESTAMP <- ymd_hms(df_TS$TIMESTAMP)
-    df_TS <- left_join(data.frame(TIMESTAMP=a$TIMESTAMP), df_TS, by = "TIMESTAMP")
-    a$TS_F_MDS_1 <- df_TS$TS_pred
-    a$TS_F_MDS_1_QC[is.na(a$TS_F_MDS_1_QC) | a$TS_F_MDS_1_QC == 3] <- 2
-    rm(df_TS)
-  } else if (name_site == "FI-Sod") {
-    # the first 5 year TS measurements was off, likely because sensor changed locations. 
-    # in 2001, measurements in soil profile 2 are correct, so building relations between profiles 1 and 2
-    mod1 <- lm(data = a[1:24383,], TS_F_MDS_2 ~ TS_F_MDS_1)
-    pred2 <- predict(mod1, data.frame(TS_F_MDS_1 = a$TS_F_MDS_1[a$YEAR <= 2005]))
-    mod2 <- lm(data = a[90000:245000,], TS_F_MDS_1 ~ TS_F_MDS_2)
-    a$TS_F_MDS_1[a$YEAR <= 2005] <- predict(mod2, data.frame(TS_F_MDS_2 = pred2))
-    a$TS_F_MDS_1_QC[a$YEAR <= 2005] <- 2
-  } else if (name_site == "GF-Guy") {
-    # use air temperature for this tropical site so that all tropical sites, we used bottom air temperature. 
-    a$TS_F_MDS_1 <- a$TA_F_MDS
-    a$TS_F_MDS_1_QC <- a$TA_F_MDS_QC
-  }
-  
-  # FLUXNET data do not include soil data for Site FR-Pue, but site PI provided the SWC data
-  if (name_site == 'FR-Pue') {
-    swc_2003_2015 <- read.table(file.path(dir_rawdata, "SiteData", "soil_water_content_FR-Pue", "FR-Pue_SWC_Control_Corrected_2003-2015.csv"), sep=';', header=T)
-    swc_2016_2020 <- read.table(file.path(dir_rawdata, "SiteData", "soil_water_content_FR-Pue", "FR-Pue_SWC_Control_Corrected_2016-2020.csv"), sep=';', header=T)
-    swc_2003_2020 <- bind_rows(swc_2003_2015, swc_2016_2020)
-    swc_2003_2020$TIMESTAMP_START <- dmy_hm(swc_2003_2020$date_time)
+  # deal with soil temperature data
+  if (name_site %in% no_TS_sites) {
+    ts_result <- reconstruct_missing_TS(a = a, name_site = name_site, ts_config = ts_config, long_mean_days = 8, shuttle_dir = shuttle_dir)
+    a$TS_F_MDS_1 <- ts_result$data$TS_F_MDS_1
     
-    a <- a %>% mutate(TIMESTAMP_START = ymd_hm(a$TIMESTAMP_START)) %>% 
-    left_join(swc_2003_2020[, c("TIMESTAMP_START", "SWC_Mean")], by="TIMESTAMP_START")
-    # times 100 to convert SWC into percentage
-    a$SWC_Mean <- a$SWC_Mean*100
-    a$SWC_F_MDS_1[!is.na(a$SWC_Mean)] <- a$SWC_Mean[!is.na(a$SWC_Mean)]
-    a$SWC_F_MDS_1_QC[!is.na(a$SWC_Mean)] <- 1
+  } else if (name_site %in% ts_config$site) {
+    ts_result <- reconstruct_TS(a=a, name_site=name_site, ts_config=ts_config, long_mean_days=8)
+    a$TS_F_MDS_1 <- ts_result$data$TS_F_MDS_1
+    # summary(ts_result$model)
   }
   
   # Southern Hemisphere, so we need to change DOY values
@@ -161,34 +134,32 @@ for (id in 1:nrow(site_info)) {
     }
   }
   
-  # decide which years data to exclude: rule 1: maximum data gaps during growing season < 1 month; rule2: large disturbance years due to fire, insect breakout
-  # estimate growing season DOY
-  NEE_yearly  <- a %>% group_by(DOY) %>% summarise(NEE=mean(NEE_VUT_REF, na.rm=T), TS=mean(TS_F_MDS_1, na.rm=T))
-  NEE_yearly_night  <- a %>% filter(NIGHT==1) %>% group_by(DOY) %>% summarise(NEE=mean(NEE_VUT_REF, na.rm=T), TS=mean(TS_F_MDS_1, na.rm=T))
+  #
+  NEE_yearly  <- a %>% group_by(DOY) %>% summarise(NEE=mean(NEE_VUT_REF, na.rm=T), TS=mean(TS_F_MDS_1, na.rm=T), TA=mean(TA_F_MDS, na.rm=T))
+  NEE_yearly_night  <- a %>% filter(NIGHT==1) %>% group_by(DOY) %>% summarise(NEE=mean(NEE_VUT_REF, na.rm=T), TS=mean(TS_F_MDS_1, na.rm=T), TA=mean(TA_F_MDS, na.rm=T))
+  NEE_yearly_day  <- a %>% filter(NIGHT==0) %>% group_by(DOY) %>% summarise(NEE=mean(NEE_VUT_REF, na.rm=T), TS=mean(TS_F_MDS_1, na.rm=T), TA=mean(TA_F_MDS, na.rm=T))
   
-  
-  # save TS~NEE curve
-  # png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
-  # par(mfrow = c(2, 2))
-  # plot(a_measure_night_complete$TS_F_MDS_1, a_measure_night_complete$NEE_VUT_REF, main=name_site)
-  # plot(NEE_yearly$DOY, NEE_yearly$NEE)
-  # plot(NEE_yearly$DOY, NEE_yearly$TS)
-  # plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
-  # dev.off()
-  
-  
-  # I will use the mean of the first three values, and the mean of the last three values
-  if (name_site %in% c('FI-Sod', 'DE-RuC')) {
-    tmp <- NEE_yearly %>% filter(NEE < 0.0)
+  # Estimate start and end date of the ER active period. 
+  # Tropical sites, all year growing season; check if we need to add more sites. 
+  if (abs(site_info$LAT[id]) < 23.5 || (site_info$Climate_class[id] %in% c("Af", "Am", "Aw", "As", "Cfa", "Cfb", "Cwa") && site_info$IGBP[id] == "EBF")) {
+    gStart <- min(NEE_yearly_night$DOY, na.rm = T)
+    gEnd <- max(NEE_yearly_night$DOY, na.rm = T)
   } else {
-    tmp <- NEE_yearly %>% filter(NEE < max(min(NEE_yearly$NEE, na.rm=T) * 0.2, -0.8))
+    df_ER_period <- estimate_active_ER_period(a = a, site_id = name_site, ta_var = "TA_F_MDS", ts_var = "TS_F_MDS_1", 
+                                              southern_hemisphere = southern_hemisphere, threshold_fraction = 0.20,
+                                              temp_threshold = 2, min_observed_doy = 180L)
+    if (df_ER_period$status == "ok") {
+      gStart <- df_ER_period$gStart
+      gEnd   <- df_ER_period$gEnd
+      if (df_ER_period$trimmed_days > 0) {
+        print(paste0(name_site, " has trimmed days at boundaries ", df_ER_period$trimmed_days))
+      }
+    } else if (df_ER_period$status == "skipped") {
+      # jump out of the loop
+      next
+    }
   }
-  
-  gStart <- as.integer(mean(tmp$DOY[7])) - 4
-  gEnd   <- as.integer(mean(tmp$DOY[(nrow(tmp)-6)])) + 4
-  
-  # In general, growing-season temperature should be > 0 C
-  gStart <- max(gStart, min(which(NEE_yearly$TS >= 0)))
+  # if user inputs the start and end dates, using them.  
   if (!is.na(site_info$gStart[id])) {
     gStart <- as.numeric(site_info$gStart[id])
   }
@@ -196,25 +167,46 @@ for (id in 1:nrow(site_info)) {
     gEnd <- as.numeric(site_info$gEnd[id])
   }
   
+  
+  # save TS~NEE curve
+  png(paste0("graphs/", name_site, "TS_NEEnight_relation.png"), width = 1200, height = 1200)
+  par(mfrow = c(3, 2))
+  plot(a_measure_night_complete$TS_F_MDS_1, a_measure_night_complete$NEE_VUT_REF, main=name_site)
+  plot(NEE_yearly$DOY, NEE_yearly$NEE)
+  mark_period(NEE_yearly$DOY, NEE_yearly$NEE, gStart, gEnd)
+  
+  plot(NEE_yearly$DOY, NEE_yearly$TS)
+  mark_period(NEE_yearly$DOY, NEE_yearly$TS, gStart, gEnd)
+  
+  plot(NEE_yearly_night$DOY, NEE_yearly_night$NEE)
+  mark_period(NEE_yearly_night$DOY, NEE_yearly_night$NEE, gStart, gEnd)
+  
+  plot(NEE_yearly_day$DOY, NEE_yearly_day$TS)
+  mark_period(NEE_yearly_day$DOY, NEE_yearly_day$TS, gStart, gEnd)
+  
+  plot(NEE_yearly_day$DOY, NEE_yearly_day$NEE)
+  mark_period(NEE_yearly_day$DOY, NEE_yearly_day$NEE, gStart, gEnd)
+  dev.off()
+  
   # temperature range of growing season
-  tStart <- quantile(tmp$TS, c(0.025), na.rm=T)
-  tEnd   <- quantile(tmp$TS, c(0.975), na.rm=T) 
+  tmp <- NEE_yearly %>% filter(between(DOY, gStart, gEnd))
+  tsStart <- quantile(tmp$TS, c(0.025), na.rm=T)
+  tsEnd   <- quantile(tmp$TS, c(0.975), na.rm=T)
+  taStart <- quantile(tmp$TA, c(0.025), na.rm=T)
+  taEnd   <- quantile(tmp$TA, c(0.975), na.rm=T)
   
-  # some sites NEE measurements under TS < 2C was inaccurate, so for these sites tStart should be greater than 2C
-  if (name_site %in% c('CH-Dav')) {
-    tStart <- max(tStart, 2)
-    a_measure_night_complete <- a_measure_night_complete %>% filter(TS_F_MDS_1 >= 2.0)
-  }
-  
-  # max gap and total large gap threshold
-  if (name_site %in% c('ZA-Kru', 'FI-Sod', 'GF-Guy')) {
-    # use larger gap threshold because lack of data at these Tropical and Tundra sites. 
-    gap_max_thresh <- 60
-    gap_total_thresh <- 0.7   
-  } else {
-    gap_max_thresh <- max(31, (gEnd-gStart+1) * 0.225)
-    gap_total_thresh <- max(1/3, gap_max_thresh / (gEnd-gStart+1))
-  }
+  # # max gap and total large gap threshold
+  # if (name_site %in% c('ZA-Kru', 'FI-Sod', 'GF-Guy')) {
+  #   # use larger gap threshold because lack of data at these Tropical and Tundra sites. 
+  #   gap_max_thresh <- 60
+  #   gap_total_thresh <- 0.7   
+  # } else {
+  #   gap_max_thresh <- max(31, (gEnd-gStart+1) * 0.225)
+  #   gap_total_thresh <- max(1/3, gap_max_thresh / (gEnd-gStart+1))
+  # }
+
+  gap_max_thresh <- (gEnd-gStart+1) * 0.5
+  gap_total_thresh <- 0.7
   
   # find long gap years
   # I need to check if this works for the southern hemisphere.
@@ -302,16 +294,14 @@ for (id in 1:nrow(site_info)) {
   ac$SW_IN <- a$SW_IN_F_MDS
   ac$GPP_DT <- a$GPP_DT_VUT_REF
   
-  # only keep years between start year and end year
-  iStart = a_measure_night_complete$YEAR[1]
-  iEnd   = a_measure_night_complete$YEAR[nrow(a_measure_night_complete)]
-  ac <- ac %>% filter(between(YEAR, iStart, iEnd))
+  # only keep years in a_measure_night_complete
+  ac <- ac %>% filter(YEAR %in% unique(a_measure_night_complete$YEAR))
   
   # save the ac and a_measure_night_complete data:
   write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)
   write.csv(a_measure_night_complete, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv')), row.names = F)
   
-  feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, tStart=max(tStart, 0.0), tEnd=tEnd, nyear=length(good_years)))
+  feature_gs <- bind_rows(feature_gs, data.frame(site_ID=name_site, gStart=gStart, gEnd=gEnd, taStart=taStart, taEnd=taEnd, tsStart=tsStart, tsEnd=tsEnd, nyear=length(good_years)))
 }
 
 # output growing season features

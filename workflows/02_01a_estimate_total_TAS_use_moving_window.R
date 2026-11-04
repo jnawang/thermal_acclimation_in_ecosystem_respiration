@@ -14,6 +14,7 @@ shelf(dplyr, lubridate, gslnls, caret, performance, ggpubr, ggplot2, zoo, bayesp
 rm(list=ls())
 
 set.seed(123)
+source(file.path("workflows", "00_functions.R"))
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
 dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
@@ -23,7 +24,9 @@ dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
 site_info <- read.csv(file.path('data', 'site_info.csv'))
 feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv'))
 feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
-feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux)
+feature_gs_Shuttle <- read.csv(file.path('data', 'growing_season_feature_Shuttle.csv'))
+
+feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux, feature_gs_Shuttle)
 
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
@@ -34,18 +37,16 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
   brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
   brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
 
-# Below are sites whose inter-annual TS was not strongly correlated to inter-annual TA, so use TA to obtain TS by linear regression. 
-site_TS_issue <- c("BE-Bra", "CA-Cbo", "CA-Gro", "CA-Mer", "CA-Obs", "CA-TP3", "CH-Lae", "DE-RuC", "DE-SfS", "FI-Sod",
-                   "IT-Ren", "NL-Loo", "US-Bar", "US-BZB", "US-BZF", "US-BZS", "US-CMW", "US-GLE", "US-Ha2",
-                   "US-IB2", "US-Jo2", "US-KL2", "US-Kon", "US-LL1", "US-MBP", "US-Myb", "US-NC4", "US-Tw1", "US-ICt",
-                   "BE-Dor", "CA-TP4", "UK-AMo", "RU-Fyo", "ZA-Kru", "IT-Tor")
+# add an option of using TA or TS
+temp_var = "TS"
 
+# for (id in 1:nrow(site_info)) {
 for (id in 1:nrow(site_info)) {
   # id = 25
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
-  
+
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
   path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv'))
@@ -57,20 +58,16 @@ for (id in 1:nrow(site_info)) {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
   }  
   
-  # For the 36 sites, obtain TS from simple linear regression of TA, in order to follow reviewer's suggestion
-  if (name_site %in% site_TS_issue) {
-    if (name_site %in% c("US-Tw1")) {
-      # slope will be too low if using ac data for the subtropical wetland sites. 
-      mod_lm <- lm(data = a_measure_night_complete, TS ~ TA, na.action = na.omit)
-    } else {
-      # using data with TA > 0, because we focus on grouping season
-      mod_lm <- lm(data = ac[ac$TA > 0, ], TS ~ TA, na.action = na.omit)
+  if (temp_var == "TS") {
+    # if a site has no TS measurements
+    if (!"TS" %in% names(a_measure_night_complete) || all(is.na(a_measure_night_complete$TS))) {
+      next
     }
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = a_measure_night_complete$TA), na.action = na.pass)
-    a_measure_night_complete$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
-    TS_pred <- predict(mod_lm, newdata = data.frame(TA = ac$TA), na.action = na.pass)
-    ac$TS[!is.na(TS_pred)] <- TS_pred[!is.na(TS_pred)]
+  } else if (temp_var == "TA") {
+    a_measure_night_complete$TS <- a_measure_night_complete$TA
+    ac$TS <- ac$TA
   }
+  a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(TS) & !is.na(NEE))
   
   # calculate daily daytime NEE and rolling average
   dt = 30  # minute
@@ -111,18 +108,28 @@ for (id in 1:nrow(site_info)) {
   # get start and end dates of growing season
   gStart <- feature_gs$gStart[feature_gs$site_ID == name_site]
   gEnd <- feature_gs$gEnd[feature_gs$site_ID == name_site]
-  tStart <- feature_gs$tStart[feature_gs$site_ID == name_site]
-  tEnd <- feature_gs$tEnd[feature_gs$site_ID == name_site]
   
-  # Correct tStart and tEnd for sites with newly regressed TS
-  if (name_site %in% site_TS_issue) {
-    tStart <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.025), na.rm=T)
-    tEnd <- quantile(ac$TS[between(ac$DOY, gStart, gEnd)], c(0.975), na.rm=T)
+  if (temp_var == "TS") {
+    tStart <- feature_gs$tsStart[feature_gs$site_ID == name_site]
+    tEnd <- feature_gs$tsEnd[feature_gs$site_ID == name_site]
+  } else if (temp_var == "TA") {
+    tStart <- feature_gs$taStart[feature_gs$site_ID == name_site]
+    tEnd <- feature_gs$taEnd[feature_gs$site_ID == name_site]    
   }
   
   # decide control year: the year with growing-season TS closest to long-term mean. 
-  ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
-  control_year <- ac_yearly_gs$growing_year[which.min(abs(ac_yearly_gs$TS - mean(ac_yearly_gs$TS)))]
+  result <- select_control_year(
+    ac = ac,
+    night_nee = a_measure_night_complete,
+    gStart = gStart,
+    gEnd = gEnd,
+    years = years
+  )
+  control_year <- result$control_year
+  ac_yearly_gs <- result$yearly_table
+
+  # ac_yearly_gs <- ac %>% filter(between(DOY, gStart, gEnd)) %>% filter(growing_year %in% years) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
+  # control_year <- ac_yearly_gs$growing_year[which.min(abs(ac_yearly_gs$TS - mean(ac_yearly_gs$TS)))]
   
   # determine moving window size and number of windows
   if (dt == 30) {
@@ -135,7 +142,7 @@ for (id in 1:nrow(site_info)) {
   window_size <- 14
   
   # use non-overlapping windows and determine number of windows for growing season; decide to use overlapping windows
-  nwindow <- max(round((gEnd - gStart + 1) / window_size), 1)
+  nwindow <- max(ceiling((gEnd - gStart + 1) / window_size), 1)
   
   #------------------------------------PREPARE FOR formula, stprm, priors of ER models---------------------------------
   # for brm models
@@ -155,9 +162,9 @@ for (id in 1:nrow(site_info)) {
   icount = 0
   for (iwindow in 1:nwindow) {
     window_start = gStart + window_size*(iwindow-1)
-    window_end = min(gStart + window_size*iwindow, gEnd)
+    window_end = min(gStart + window_size*iwindow - 1, gEnd)
     
-    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS, na.rm=T))
+    ac_yearly_window <- ac %>% filter(between(DOY, window_start, window_end)) %>% group_by(growing_year) %>% summarise(TS=mean(TS))
     if (!between(mean(ac_yearly_window$TS, na.rm=T), max(tStart, 2.0), tEnd) & nwindow > 1) {
       next
     }
@@ -205,8 +212,41 @@ for (id in 1:nrow(site_info)) {
       df_site_year_window$growing_year[icount] <- iyear
       df_site_year_window$window[icount] <- paste(window_start, window_end, sep='_')
       
+      # if no temperature measurement, skip this window_year. 
+      if (length(ac_yearly_window$TS[ac_yearly_window$growing_year == iyear]) == 0) {
+        next
+      }
+
       # determine if there are enough data for the regression of each year
       data_subset <- data[data$growing_year == iyear, ]
+      
+      # Determine if there are long-gaps during this window-year. 
+      # Use the actual number of days in this window
+      window_days <- seq(window_start, window_end)
+      window_length <- length(window_days)
+      
+      # A day is observed if it has at least one nighttime NEE observation
+      observed_days <- unique(data_subset$DOY)
+      
+      # TRUE indicates a completely missing day
+      is_gap <- !window_days %in% observed_days
+      
+      # Fraction of all days that are missing
+      total_gap_fraction <- sum(is_gap) / window_length
+      
+      # Longest sequence of consecutive missing days
+      gap_runs <- rle(is_gap)
+      max_gap_days <- if (any(gap_runs$values)) {
+        max(gap_runs$lengths[gap_runs$values])
+      } else {
+        0
+      }
+      max_gap_fraction <- max_gap_days / window_length
+      
+      # Skip this window-year when either condition is violated
+      if (total_gap_fraction > 0.75 || max_gap_fraction > 0.5) {
+        next
+      }
       
       # two rules are needed:
       # rule 1: total number of points > 100. 
@@ -257,8 +297,8 @@ for (id in 1:nrow(site_info)) {
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
-      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      # lines(data_subset$TS, data_subset$NEE_pred)
+      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]
@@ -268,7 +308,7 @@ for (id in 1:nrow(site_info)) {
       
       # ER at reference temperature
       df_ERref <- fitted(mod, newdata=data_ref)
-      df_site_year_window$ERref[icount] <- ifelse(df_ERref[, "Estimate"] <  df_ERref[, "Est.Error"], NA, df_ERref[, "Estimate"])
+      df_site_year_window$ERref[icount] <- ifelse(df_ERref[, "Estimate"] < 0.5 * df_ERref[, "Est.Error"], NA_real_, df_ERref[, "Estimate"])
       
       if (iyear == control_year) {
         ERref_control <- df_site_year_window$ERref[icount]
@@ -276,23 +316,24 @@ for (id in 1:nrow(site_info)) {
     }
     # end of each year loop
     
-    # if no data in a control year during this window, use average ER across years as the reference conditions
+    # if no data in a control year during this window, use median ER across years as the reference conditions
     if (is.na(ERref_control)) {
       irow_site_window <- which(df_site_year_window$site_ID == name_site & df_site_year_window$window == paste(window_start, window_end, sep='_'))
-      ERref_control <- mean(df_site_year_window$ERref[irow_site_window], na.rm=T)
+      ERref_control <- median(df_site_year_window$ERref[irow_site_window], na.rm=T)
     }
     
     df_site_year_window$lnRatio[(icount-length(years) + 1):icount] <- log(df_site_year_window$ERref[(icount-length(years) + 1):icount] / ERref_control)
     
     # remove unrealistic extreme values due to potentially large gaps; this only affects a few sites
     x <- df_site_year_window$lnRatio[(icount-length(years) + 1):icount]
-    outlier <- boxplot.stats(x, coef = 3)$out
-    id.remove <- match(outlier[abs(outlier) > 1.5], x)
-    if (length(id.remove) > 0) {
-      df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
-      icount <- icount - length(id.remove)
+    if (sum(is.na(x)) >= 5) {
+      outlier <- boxplot.stats(x, coef = 3)$out
+      id.remove <- match(outlier[abs(outlier) > 1.5], x)
+      if (length(id.remove) > 0) {
+        df_site_year_window <- df_site_year_window[-(icount - length(years) + id.remove), ]
+        icount <- icount - length(id.remove)
+      }
     }
-    
   }
   # end of each window
   outcome_siteyear <- rbind(outcome_siteyear, df_site_year_window)
@@ -319,6 +360,6 @@ for (id in 1:nrow(site_info)) {
 }
 
 # end of each site
-write.csv(outcome, file = file.path('data', 'outcome_temp.csv'), row.names = F)
-write.csv(outcome_siteyear, file = file.path('data', 'outcome_siteyear_temp.csv'), row.names = F)
+write.csv(outcome, file = file.path('data', paste0(temp_var, '_outcome_temp.csv')), row.names = F)
+write.csv(outcome_siteyear, file = file.path('data', paste0(temp_var, '_outcome_siteyear_temp.csv')), row.names = F)
 
