@@ -24,6 +24,9 @@
 #   TAS_PARTITION (day), TAS_TIME (23:30:00), TAS_MEM (8G), TAS_CPUS (4: the 4 chains of each
 #   brms fit), TAS_MAX_CONCURRENT (200): the Slurm array's resources
 #   TAS_COMBINE_DIR     where combine writes the combined tables (default data)
+#   TAS_ALLOW_FAILED    1: combine the tasks with results even where others failed (by default a
+#                       step and temperature variable with a failed task is not combined); either
+#                       way combine lists the failed tasks with their errors, from each task's log.txt
 set -euo pipefail
 
 repo_root="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -88,13 +91,14 @@ run_task() {
   script="$(script_of "$step")"
   task_dir="$out_dir/${temp_var}_${step}/$site"
   mkdir -p "$task_dir"
-  # a failed earlier attempt must not leave results behind
-  rm -f "$task_dir"/*.csv
+  # a failed earlier attempt must not leave results or its log behind
+  rm -f "$task_dir"/*.csv "$task_dir/log.txt"
   activate_env
   echo "task $n: step 02_01$step, $temp_var, $site -> $task_dir ($(hostname), $(date))"
-  # each task its own plot file, instead of every task writing Rplots.pdf in the repository
+  # each task its own plot file, instead of every task writing Rplots.pdf in the repository;
+  # the R output also goes to the task's log.txt, where combine finds the error of a failed task
   TAS_SITE="$site" TAS_TEMP_VAR="$temp_var" TAS_OUT_DIR="$task_dir" \
-    Rscript -e "pdf(file.path('$task_dir', 'plots.pdf')); source('$script')"
+    Rscript -e "pdf(file.path('$task_dir', 'plots.pdf')); source('$script')" 2>&1 | tee "$task_dir/log.txt"
   echo "task $n done ($(date))"
 }
 
