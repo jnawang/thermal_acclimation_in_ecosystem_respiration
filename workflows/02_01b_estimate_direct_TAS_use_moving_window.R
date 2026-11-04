@@ -17,7 +17,8 @@ set.seed(123)
 source(file.path("workflows", "00_functions.R"))
 ####################Attention: change this directory based on your own directory of raw data
 # dir_rawdata <- '/Volumes/MaloneLab/Research/Stability_Project/Thermal_Acclimation'
-dir_rawdata <- '/Volumes/WZZ_disk/Thermal_Acclimation'
+# (or set the environment variable TAS_DIR_RAWDATA)
+dir_rawdata <- Sys.getenv("TAS_DIR_RAWDATA", '/Volumes/WZZ_disk/Thermal_Acclimation')
 # dir_rawdata <- '/Users/junnawang/YaleLab/data_server'
 ####################End Attention
 
@@ -56,9 +57,18 @@ prior_values_init <- c(C0_mu = 2, C0_sd = 5, alpha_mu = 0.1, alpha_sd = 1, beta_
                        Hs_mu = 10, Hs_sd = 10, k2_mu = 0.5, k2_sd = 2)
 
 # add an option of using TA or TS
-temp_var = "TS"
+# (environment variable TAS_TEMP_VAR, default "TS")
+temp_var <- Sys.getenv("TAS_TEMP_VAR", "TS")
+stopifnot(temp_var %in% c("TS", "TA"))
 
-for (id in 1:nrow(site_info)) {
+# fit every site, or only the site named by the environment variable TAS_SITE (one task of the
+# parallel run, workflows/02_01_tas_parallel.sh); results go to TAS_OUT_DIR (default data)
+tas_site <- Sys.getenv("TAS_SITE")
+site_ids <- if (nzchar(tas_site)) match(tas_site, site_info$site_ID) else 1:nrow(site_info)
+stopifnot(!anyNA(site_ids))
+out_dir <- Sys.getenv("TAS_OUT_DIR", "data")
+
+for (id in site_ids) {
   # id = 27
   print(id)
   name_site <- site_info$site_ID[id]
@@ -428,6 +438,6 @@ for (id in 1:nrow(site_info)) {
 }
 # end of each site
 
-write.csv(outcome, file = file.path('data', paste0(temp_var, '_outcome_temp_water_gpp.csv')), row.names = F)
-write.csv(outcome_siteyear, file = file.path('data', paste0(temp_var, '_outcome_siteyear_temp_water_gpp.csv')), row.names = F)
+write.csv(outcome, file = file.path(out_dir, paste0(temp_var, '_outcome_temp_water_gpp.csv')), row.names = F)
+write.csv(outcome_siteyear, file = file.path(out_dir, paste0(temp_var, '_outcome_siteyear_temp_water_gpp.csv')), row.names = F)
 
