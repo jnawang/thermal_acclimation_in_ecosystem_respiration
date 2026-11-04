@@ -1250,3 +1250,32 @@ repair_TS_periods <- function(a, bad_periods) {
   
   return(a)
 }
+
+#------------------------priors of the TAS models passed to Stan as data (02_01a, 02_01b)----------------------
+# The prior means of the ER models are re-centred window by window. Written into the model code as
+# numbers, every new value changes the Stan program and brms recompiles it; passed as data
+# (stanvars), the Stan program is the same for every window, year and site and is compiled once
+# per R process.
+
+# brms's default prior of the residual SD, student_t(3, 0, s), writes a data-dependent s into the
+# model code; pass s as data as well
+prior_sigma <- brms::prior("student_t(3, 0, sigma_scale)", class = "sigma")
+
+# the scale brms would use for its default student_t(3, 0, scale) prior on the residual SD of
+# `formula` fitted to `data`
+default_sigma_scale <- function(formula, data) {
+  dp <- brms::default_prior(formula, data = data)
+  scale <- sub("^student_t\\(3, 0, (.*)\\)$", "\\1", dp$prior[dp$class == "sigma" & !nzchar(dp$coef)])
+  stopifnot(length(scale) == 1)
+  as.numeric(scale)
+}
+
+# the prior means and SDs (<par>_mu, <par>_sd, from `prior_values`) of the nonlinear parameters in
+# `priors`, plus the residual-SD scale for `formula` and `data`, as brms stanvars
+tas_stanvars <- function(prior_values, priors, formula, data) {
+  pars <- priors$nlpar[nzchar(priors$nlpar)]
+  names <- as.vector(outer(c("_mu", "_sd"), pars, function(suffix, par) paste0(par, suffix)))
+  stopifnot(all(names %in% names(prior_values)))
+  values <- c(prior_values[names], sigma_scale = default_sigma_scale(formula, data))
+  Reduce(`+`, Map(function(value, name) brms::stanvar(value, name = name), unname(values), names(values)))
+}

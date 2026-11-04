@@ -34,9 +34,13 @@ outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), con
                       nwindow = integer(), TAS = double(), TASp = double())
 outcome_siteyear <- data.frame()
 
-priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
-  brms::prior("normal(0.1, 1)", nlpar = "alpha", lb = 0, ub = 0.2) + 
-  brms::prior("normal(-0.001, 0.1)", nlpar = "beta", lb = -0.01, ub = 0.0)
+priors_temp <- brms::prior("normal(C0_mu, C0_sd)", nlpar = "C0", lb = 0, ub = 10) +
+  brms::prior("normal(alpha_mu, alpha_sd)", nlpar = "alpha", lb = 0, ub = 0.2) + 
+  brms::prior("normal(beta_mu, beta_sd)", nlpar = "beta", lb = -0.01, ub = 0.0)
+# the prior means and SDs are passed to Stan as data (tas_stanvars() in 00_functions.R), so that
+# the Stan program is the same for every window, year and site and is compiled only once;
+# the means are re-centred window by window below, the SDs never change
+prior_values_init <- c(C0_mu = 2, C0_sd = 5, alpha_mu = 0.1, alpha_sd = 1, beta_mu = -0.001, beta_sd = 0.1)
 
 # add an option of using TA or TS
 temp_var = "TS"
@@ -153,6 +157,7 @@ for (id in 1:nrow(site_info)) {
   frmu <- NEE ~ exp(alpha * TS + beta*TS^2) * C0
   param <- alpha+beta+C0 ~ 1
   priors <- priors_temp
+  prior_values <- prior_values_init
   # for nls models
   # alpha and CO are both positive and beta is negative
   frmu_nls <- NEE ~ exp(exp(alpha_ln) * TS - exp(beta_ln)*TS^2) * (exp(C0_ln))
@@ -181,21 +186,21 @@ for (id in 1:nrow(site_info)) {
     # this can give abnormal initial values. 
     mod_nls <- try(gsl_nls(fn=as.formula(frmu_nls), data=data, start=stprm))
     if (!inherits(mod_nls, "try-error")) {
-      priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2), ", 1.0)")
-      priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", -min(exp(coefficients(mod_nls)["beta_ln"]), 0.01), ", 0.1)")
-      priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", min(exp(coefficients(mod_nls)["C0_ln"]), 10), ", 5)")
+      prior_values["alpha_mu"] <- min(exp(coefficients(mod_nls)["alpha_ln"]), 0.2)
+      prior_values["beta_mu"] <- -min(exp(coefficients(mod_nls)["beta_ln"]), 0.01)
+      prior_values["C0_mu"] <- min(exp(coefficients(mod_nls)["C0_ln"]), 10)
     }
     
     # call the brm model to estimate parameters; this step takes much longer time.
     mod0 <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                      prior = priors, data = data, iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
+                      prior = priors + prior_sigma, data = data, stanvars = tas_stanvars(prior_values, priors, brms::bf(frmu, param, nl = TRUE), data), iter = 2000, cores =4, chains = 4, backend = "cmdstanr",
                       control = list(adapt_delta = 0.95, max_treedepth = 15), refresh = 0) # , silent = 2
     # print(summary(mod0), digits = 3)
     
     # use this result as prior of each year
-    priors$prior[priors$nlpar == 'alpha'] <- paste0("normal(", brms::fixef(mod0)["alpha_Intercept", "Estimate"], ", 1.0)")
-    priors$prior[priors$nlpar == 'beta'] <- paste0("normal(", brms::fixef(mod0)["beta_Intercept", "Estimate"], ", 0.1)")
-    priors$prior[priors$nlpar == 'C0'] <- paste0("normal(", brms::fixef(mod0)["C0_Intercept", "Estimate"], ", 5)")
+    prior_values["alpha_mu"] <- brms::fixef(mod0)["alpha_Intercept", "Estimate"]
+    prior_values["beta_mu"] <- brms::fixef(mod0)["beta_Intercept", "Estimate"]
+    prior_values["C0_mu"] <- brms::fixef(mod0)["C0_Intercept", "Estimate"]
     
     # get reference temperature, SWC, and NEEday of each window
     TSref <- mean(ac$TS[between(ac$DOY, window_start, window_end)], na.rm=T)
@@ -298,7 +303,7 @@ for (id in 1:nrow(site_info)) {
       if (median(data_subset$NEE) < 0.2 | mean(data_subset$NEE) < 0.2) { next }
       
       mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
-                       prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
+                       prior = priors + prior_sigma, data = data_subset, stanvars = tas_stanvars(prior_values, priors, brms::bf(frmu, param, nl = TRUE), data_subset), iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
       
       if (!inherits(mod, "try-error")) {
@@ -312,7 +317,7 @@ for (id in 1:nrow(site_info)) {
       # if brm models fail or have divergent transitions, try another time
       if (failed_brm) {
         mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
-                             prior = priors, data = data_subset, iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
+                             prior = priors + prior_sigma, data = data_subset, stanvars = tas_stanvars(prior_values, priors, brms::bf(frmu, param, nl = TRUE), data_subset), iter = 4000, cores =4, chains = 4, backend = "cmdstanr", 
                              control = list(adapt_delta = 0.98, max_treedepth = 15), refresh = 0)) # , silent = 2
       }
       
