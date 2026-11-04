@@ -53,6 +53,10 @@ for (id in 1:nrow(site_info)) {
   if (file.exists(path)) {
     a_measure_night_complete <- read.csv(path)
     ac <- read.csv(file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')))
+  } else {
+    # skip a site without respiration data (otherwise the previous site's data would be used)
+    print(paste(name_site, "has no RespirationData file: skipped"))
+    next
   }
   if (site_info$SWC_use[id] == 'YES') {
     a_measure_night_complete <- a_measure_night_complete %>% filter(!is.na(SWC))
