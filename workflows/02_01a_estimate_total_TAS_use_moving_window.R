@@ -47,7 +47,6 @@ for (id in 1:nrow(site_info)) {
   name_site <- site_info$site_ID[id]
   print(name_site)
 
-  # if (site_info$IGBP[id] != "WET") { next }
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
   path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv'))
