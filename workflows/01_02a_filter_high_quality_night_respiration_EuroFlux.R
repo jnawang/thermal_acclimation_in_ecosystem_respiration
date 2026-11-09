@@ -85,16 +85,18 @@ for (id in 1:nrow(site_info)) {
   if (name_site %in% no_TS_sites) {
     ts_result <- reconstruct_missing_TS(a = a, name_site = name_site, ts_config = ts_config, long_mean_days = 8, shuttle_dir = shuttle_dir)
     a$TS_F_MDS_1 <- ts_result$data$TS_F_MDS_1
+    a$TS_F_MDS_1_QC <- ts_result$data$TS_F_MDS_1_QC
     
   } else if (name_site %in% ts_config$site) {
     ts_result <- reconstruct_TS(a=a, name_site=name_site, ts_config=ts_config, long_mean_days=8)
     a$TS_F_MDS_1 <- ts_result$data$TS_F_MDS_1
+    a$TS_F_MDS_1_QC <- ts_result$data$TS_F_MDS_1_QC
     # summary(ts_result$model)
   }
   
   # Southern Hemisphere, so we need to change DOY values
   southern_hemisphere = FALSE
-  if (name_site %in% c('AU-Tum', 'ZA-Kru', "BR-Sa1")) {
+  if (site_info$LAT[id] < -10) {
     a$DOY[a$DOY < 183] <- a$DOY[a$DOY < 183] + 366
     southern_hemisphere = TRUE
   }

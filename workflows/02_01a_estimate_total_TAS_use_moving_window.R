@@ -25,8 +25,9 @@ site_info <- read.csv(file.path('data', 'site_info.csv'))
 feature_gs <- read.csv(file.path('data', 'growing_season_feature_EuropFlux.csv'))
 feature_gs_AmeriFlux <- read.csv(file.path('data', 'growing_season_feature_AmeriFlux.csv'))
 feature_gs_Shuttle <- read.csv(file.path('data', 'growing_season_feature_Shuttle.csv'))
+feature_gs_Self_compile <- read.csv(file.path('data', 'growing_season_feature_self_compile.csv'))
 
-feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux, feature_gs_Shuttle)
+feature_gs <- rbind(feature_gs, feature_gs_AmeriFlux, feature_gs_Shuttle, feature_gs_Self_compile)
 
 # outcome data frame
 outcome <- data.frame(site_ID = character(), RMSE = double(), R2 = double(), control_year = double(), window_size = integer(), 
@@ -40,13 +41,13 @@ priors_temp <- brms::prior("normal(2, 5)", nlpar = "C0", lb = 0, ub = 10) +
 # add an option of using TA or TS
 temp_var = "TS"
 
-# for (id in 1:nrow(site_info)) {
 for (id in 1:nrow(site_info)) {
   # id = 25
   print(id)
   name_site <- site_info$site_ID[id]
   print(name_site)
 
+  # if (site_info$IGBP[id] != "WET") { next }
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
   path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv'))
@@ -221,30 +222,49 @@ for (id in 1:nrow(site_info)) {
       data_subset <- data[data$growing_year == iyear, ]
       
       # Determine if there are long-gaps during this window-year. 
-      # Use the actual number of days in this window
-      window_days <- seq(window_start, window_end)
-      window_length <- length(window_days)
+      # All eligible nighttime records; polar days are automatically excluded
+      night_ac <- ac %>% filter(growing_year == iyear, between(DOY, window_start, window_end), !daytime)
+      if (nrow(night_ac) == 0) { next }
       
-      # A day is observed if it has at least one nighttime NEE observation
-      observed_days <- unique(data_subset$DOY)
+      # ---------- Day-based gaps ----------
+      window_days   <- sort(unique(night_ac$DOY))
+      observed_days <- unique(data_subset$DOY[!is.na(data_subset$NEE)])
+      day_gap       <- !window_days %in% observed_days
       
-      # TRUE indicates a completely missing day
-      is_gap <- !window_days %in% observed_days
+      total_gap_fraction_day <- mean(day_gap)
       
-      # Fraction of all days that are missing
-      total_gap_fraction <- sum(is_gap) / window_length
+      day_runs <- rle(day_gap)
+      max_gap_days <- if (any(day_runs$values)) {
+        max(day_runs$lengths[day_runs$values])
+      } else 0
       
-      # Longest sequence of consecutive missing days
-      gap_runs <- rle(is_gap)
-      max_gap_days <- if (any(gap_runs$values)) {
-        max(gap_runs$lengths[gap_runs$values])
-      } else {
-        0
-      }
-      max_gap_fraction <- max_gap_days / window_length
+      max_gap_fraction_day <- max_gap_days / length(window_days)
+      
+      # ---------- Hourly-record-based gaps ----------
+      night_records <- night_ac %>%
+        distinct(YEAR, MONTH, DAY, HOUR, MINUTE) %>%
+        left_join(
+          data_subset %>%
+            filter(!is.na(NEE)) %>%
+            distinct(YEAR, MONTH, DAY, HOUR, MINUTE) %>%
+            mutate(observed = TRUE),
+          by = c("YEAR", "MONTH", "DAY", "HOUR", "MINUTE")
+        ) %>%
+        arrange(YEAR, MONTH, DAY, HOUR, MINUTE) %>%
+        mutate(is_gap = is.na(observed))
+      
+      total_gap_fraction_hour <- mean(night_records$is_gap)
+      
+      hour_runs <- rle(night_records$is_gap)
+      max_gap_records <- if (any(hour_runs$values)) {
+        max(hour_runs$lengths[hour_runs$values])
+      } else 0
+      
+      max_gap_fraction_hour <- max_gap_records / nrow(night_records)      
       
       # Skip this window-year when either condition is violated
-      if (total_gap_fraction > 0.75 || max_gap_fraction > 0.5) {
+      if ((total_gap_fraction_day > 0.75 || max_gap_fraction_day > 0.5) & 
+          (total_gap_fraction_hour > 0.75 || max_gap_fraction_hour > 0.5)) {
         next
       }
       

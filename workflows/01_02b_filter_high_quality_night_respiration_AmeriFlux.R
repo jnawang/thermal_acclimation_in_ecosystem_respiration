@@ -27,7 +27,7 @@ site_info <- read.csv(file.path('data', 'site_info.csv'))
 feature_gs <- data.frame(site_ID=character(), gStart=double(), gEnd=double(), taStart=double(), taEnd=double(), tsStart=double(), tsEnd=double(), nyear=integer())  # growing season feature
 
 # put a for loop here
-for (id in 106:nrow(site_info)) {
+for (id in 1:nrow(site_info)) {
   # id = 116
   print(id)
   data_source <- site_info$source[id]
@@ -80,10 +80,11 @@ for (id in 106:nrow(site_info)) {
   sunrise_set$sunset <- as.POSIXct(as.character(sunrise_set$sunset), tz='GMT') + difftime(sunrise_set$date[iday_sun], as_date(sunrise_set$sunset[iday_sun]))
 
   # if in southern Hemisphere, so we need to change DOY values
-  southern_hemisphere = FALSE
-  if (name_site %in% c()) {
+  if (site_info$LAT[id] < -10) {
     a$DOY[a$DOY < 183] <- a$DOY[a$DOY < 183] + 366
     southern_hemisphere = TRUE
+  } else {
+    southern_hemisphere = FALSE
   }
   
   # create ancillary df
@@ -189,8 +190,9 @@ for (id in 106:nrow(site_info)) {
     
   } else if (name_site %in% ts_config$site) {
     a$TA_F_MDS <- ac$TA
-    a$TA_F_MDS_QC <- 0
+    a$TA_F_MDS_QC <- ifelse(is.numeric(a$TA_F_MDS), 0, NA)
     a$TS_F_MDS_1 <- ac$TS
+    a$TS_F_MDS_1_QC <- ifelse(is.numeric(a$TS_F_MDS_1), 0, NA)
     ts_result <- reconstruct_TS(a=a, name_site=name_site, ts_config=ts_config, long_mean_days=8)
     ac$TS <- ts_result$data$TS_F_MDS_1
     # summary(ts_result$model)

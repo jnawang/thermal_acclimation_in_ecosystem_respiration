@@ -60,10 +60,29 @@ for (id in 1:nrow(site_info)) {
   a$MINUTE <- minute(a$TIMESTAMP)
   
   # these sites TA have problem, using alternative TA variable. 
-  if (name_site %in% c("CN-You", "US-Jo2", "CA-Ca1", "US-Los","AU-How")) {
+  if (name_site %in% c("CN-You", "CA-Ca1", "US-Los","AU-How")) {
     a$TA_F_MDS <- a$TA_ERA
-  } else if (name_site %in% c("BE-Vie", "CL-SDF")) {
+  } else if (name_site %in% c(  "AT-Zoe", "AU-ASM", "AU-Boy", "AU-Cow", "AU-Cum", "AU-GWW", 
+                                "AU-TTE", "AU-Tum", "AU-Whr", "AU-Ync", "BE-Bra", "BE-Dor",
+                                "CA-Cbo", "CA-Gro", "CA-Mer", "CA-SCC", "CA-TP3",
+                                "CA-TPD", "CH-Aws", "CH-Cha", "CL-SDP", "CN-BeO", "CN-Din", "CN-Du2",
+                                "CN-Dzo", "CN-Sdq", "CN-Xi2", "CN-YaS", "CZ-wet", "DE-Akm",
+                                "DE-Hai", "DE-Lnf", "DE-SfS", "DK-Sor", "ES-Agu", "ES-Amo", "ES-LM2",
+                                "FI-Var", "FR-Hes", "IT-Cpz", "IT-MBo", "IT-Ro2", "JP-Api",
+                                "JP-Khw", "JP-Spp", "JP-Tak", "JP-Yms", "JP-Ynf", "RU-Ege",
+                                "RU-Fy2", "RU-Fyo", "SN-Dhr", "TH-Mae", "US-BZB", "US-BZF", 
+                                "US-Ho2", "US-ICs", "US-ICt", "US-Jo1", "US-Jo2",
+                                "US-MMS", "US-MOz", "US-NC4", "US-Ro4", "US-TKs", "US-Vcm", "US-WCr")) {
     a$TA_F_MDS <- a$TA_F
+  } else if (name_site %in% c("AU-DaS", "CA-LP1", "CL-SDF", "CN-Dsh", "DE-HoH", "ES-LJu", "FR-Bil", 
+                              "AU-Dry", "AU-Stp", "DE-Hzd", "US-KFS", "US-Kon", "US-MBP", "US-Oho", "US-Ton",
+                              "CZ-BK1", "US-Tw1", "US-EML", "NL-Loo", "US-Ha1", "US-Syv", "BJ-Bfg", "IT-Ren", 
+                              "CA-Man", "US-NC2", "CZ-Lnz", "AU-Wom")) {
+    # non-measured data, using ERA5
+    a$TA_F_MDS[a$TA_F_MDS_QC != 0 | is.na(a$TA_F_MDS_QC)] <- a$TA_ERA[a$TA_F_MDS_QC != 0 | is.na(a$TA_F_MDS_QC)]
+  } else if (name_site == "US-ICh") {
+    # TA data is problematic in a short period
+    a$TA_F_MDS[a$YEAR == 2008 & between(a$DOY, 261, 277)] <- a$TA_ERA[a$YEAR == 2008 & between(a$DOY, 261, 277)]
   }
   
   # these sites TS has a few short-period of abnormal data. 
