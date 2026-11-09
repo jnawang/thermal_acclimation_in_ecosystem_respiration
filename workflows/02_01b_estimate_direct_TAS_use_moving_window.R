@@ -52,7 +52,7 @@ priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 # add an option of using TA or TS
 temp_var = "TS"
 
-for (id in 221:nrow(site_info)) {
+for (id in 1:nrow(site_info)) {
   # id = 27
   print(id)
   name_site <- site_info$site_ID[id]
