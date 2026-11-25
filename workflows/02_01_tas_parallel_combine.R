@@ -21,6 +21,7 @@ stopifnot(length(args) == 3)
 tasks_file <- args[1]
 tasks_dir <- args[2]
 combine_dir <- args[3]
+dir.create(combine_dir, recursive = TRUE, showWarnings = FALSE)
 
 tasks <- readr::read_tsv(tasks_file, col_names = c("step", "temp_var", "site"),
                          col_types = readr::cols(.default = readr::col_character()))
