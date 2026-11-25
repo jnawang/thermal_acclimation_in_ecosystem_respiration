@@ -1,12 +1,7 @@
 # Purpose of this script: prepare data for fitting temperature-respiration curves for EuroFlux sites. 
 # Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
-#  It will take ~ 30 mins to finish running this script. 
-
-# Special attention: 
-# site FR-Pue - soil water provided by PI
-# sites in southern hemisphere ('AU-Tum', 'ZA-Kru') have growing seasons spanning two years. 
-# we added 11 European sites in Aug. 2025
+#  It will take ~ 5 mins to finish running this script. 
 
 library(librarian)
 shelf(dplyr, lubridate)
@@ -296,8 +291,8 @@ for (id in 1:nrow(site_info)) {
   ac$SW_IN <- a$SW_IN_F_MDS
   ac$GPP_DT <- a$GPP_DT_VUT_REF
   
-  # only keep years in a_measure_night_complete
-  ac <- ac %>% filter(YEAR %in% unique(a_measure_night_complete$YEAR))
+  # # only keep years in a_measure_night_complete
+  # ac <- ac %>% filter(YEAR %in% unique(a_measure_night_complete$YEAR))
   
   # save the ac and a_measure_night_complete data:
   write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)

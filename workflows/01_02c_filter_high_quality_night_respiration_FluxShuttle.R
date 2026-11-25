@@ -1,16 +1,7 @@
 # Purpose of this script: prepare data for fitting temperature-respiration curves for EuroFlux sites. 
 # Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
-#  It will take ~ 30 mins to finish running this script. 
-
-# Special attention: 
-# site FR-Pue - soil water provided by PI
-# sites in southern hemisphere ('AU-Tum', 'ZA-Kru') have growing seasons spanning two years. 
-# we added 11 European sites in Aug. 2025
-# 20/29/2026
-# pay attention to the two sites
-# CH-Rtb is a highly managed grassland site, not sure if we need to keep this site.  
-# CN-You pay attention to see if this site is right. 
+# It will take ~ 2 hours to finish running this script. 
 
 library(librarian)
 shelf(dplyr, lubridate)
@@ -42,7 +33,7 @@ for (id in 1:nrow(site_info)) {
   
   name_site <- site_info$site_ID[id]
   print(name_site)
-  
+
   # reach file
   file  <- files_FLUXNET_Shuttle[grepl(name_site, files_FLUXNET_Shuttle)]
   a <- read.csv(file)  
@@ -60,30 +51,34 @@ for (id in 1:nrow(site_info)) {
   a$MINUTE <- minute(a$TIMESTAMP)
   
   # these sites TA have problem, using alternative TA variable. 
-  if (name_site %in% c("CN-You", "CA-Ca1", "US-Los","AU-How")) {
+  if (name_site %in% c("CN-You", "CN-Aro", "CA-Ca1", "US-Los","AU-How", "CL-SDP", "CZ-BK1", "DE-SfS", "IT-Cpz", "RU-SkP", "SN-Dhr", "US-TKs")) {
     a$TA_F_MDS <- a$TA_ERA
   } else if (name_site %in% c(  "AT-Zoe", "AU-ASM", "AU-Boy", "AU-Cow", "AU-Cum", "AU-GWW", 
                                 "AU-TTE", "AU-Tum", "AU-Whr", "AU-Ync", "BE-Bra", "BE-Dor",
-                                "CA-Cbo", "CA-Gro", "CA-Mer", "CA-SCC", "CA-TP3",
-                                "CA-TPD", "CH-Aws", "CH-Cha", "CL-SDP", "CN-BeO", "CN-Din", "CN-Du2",
+                                "CA-Cbo", "CA-Mer", "CA-SCC", "CA-TP3",
+                                "CA-TPD", "CH-Aws", "CH-Cha", "CN-BeO", "CN-Din", "CN-Du2",
                                 "CN-Dzo", "CN-Sdq", "CN-Xi2", "CN-YaS", "CZ-wet", "DE-Akm",
-                                "DE-Hai", "DE-Lnf", "DE-SfS", "DK-Sor", "ES-Agu", "ES-Amo", "ES-LM2",
-                                "FI-Var", "FR-Hes", "IT-Cpz", "IT-MBo", "IT-Ro2", "JP-Api",
+                                "DE-Hai", "DE-Lnf", "DK-Sor", "ES-Agu", "ES-Amo", "ES-LM2",
+                                "FI-Var", "FR-Hes", "IT-MBo", "IT-Ro2", "JP-Api",
                                 "JP-Khw", "JP-Spp", "JP-Tak", "JP-Yms", "JP-Ynf", "RU-Ege",
-                                "RU-Fy2", "RU-Fyo", "SN-Dhr", "TH-Mae", "US-BZB", "US-BZF", 
+                                "RU-Fy2", "RU-Fyo", "TH-Mae", "US-BZB", "US-BZF", 
                                 "US-Ho2", "US-ICs", "US-ICt", "US-Jo1", "US-Jo2",
-                                "US-MMS", "US-MOz", "US-NC4", "US-Ro4", "US-TKs", "US-Vcm", "US-WCr")) {
+                                "US-MMS", "US-MOz", "US-NC4", "US-Ro4", "US-Vcm", "US-WCr"  )) {
     a$TA_F_MDS <- a$TA_F
   } else if (name_site %in% c("AU-DaS", "CA-LP1", "CL-SDF", "CN-Dsh", "DE-HoH", "ES-LJu", "FR-Bil", 
                               "AU-Dry", "AU-Stp", "DE-Hzd", "US-KFS", "US-Kon", "US-MBP", "US-Oho", "US-Ton",
-                              "CZ-BK1", "US-Tw1", "US-EML", "NL-Loo", "US-Ha1", "US-Syv", "BJ-Bfg", "IT-Ren", 
-                              "CA-Man", "US-NC2", "CZ-Lnz", "AU-Wom")) {
+                              "US-Tw1", "US-EML", "NL-Loo", "US-Ha1", "US-Syv", "BJ-Bfg", "IT-Ren", 
+                              "CA-Man", "US-NC2", "CZ-Lnz", "AU-Wom",
+                              "IT-Cp2", "US-HBK", "US-Ced", "US-Rms", "JP-MMF", "NL-Hrw", "US-Whs", "CA-Gro", "CA-Ojp", "CN-Ha2", "US-GLE")) {
     # non-measured data, using ERA5
     a$TA_F_MDS[a$TA_F_MDS_QC != 0 | is.na(a$TA_F_MDS_QC)] <- a$TA_ERA[a$TA_F_MDS_QC != 0 | is.na(a$TA_F_MDS_QC)]
   } else if (name_site == "US-ICh") {
     # TA data is problematic in a short period
     a$TA_F_MDS[a$YEAR == 2008 & between(a$DOY, 261, 277)] <- a$TA_ERA[a$YEAR == 2008 & between(a$DOY, 261, 277)]
   }
+  
+  # for the remaining period with NA in TA, just use TA_ERA data
+  a$TA_F_MDS[is.na(a$TA_F_MDS)] <- a$TA_ERA[is.na(a$TA_F_MDS)]
   
   # these sites TS has a few short-period of abnormal data. 
   if (name_site == "CH-Rtb") {
@@ -340,8 +335,11 @@ for (id in 1:nrow(site_info)) {
   ac$GPP_DT <- a$GPP_DT_VUT_REF
   ac$GPP_NT <- a$GPP_NT_VUT_REF
   
-  # only keep years in a_measure_night_complete
-  ac <- ac %>% filter(YEAR %in% unique(a_measure_night_complete$YEAR))
+  # 6 sites, whose TS does not vary with concurrent TA and the mean TA of previous day (beta < 0.05), using the mean of TA and TS as ecosystem temperature. 
+  if (name_site %in% c("US-Tw1", "US-MBP", "US-ICh", "US-ICt", "DE-SfS", "AU-Ctr")) {
+    ac$TS <- (ac$TS + ac$TA) / 2.0
+    a_measure_night_complete$TS <- (a_measure_night_complete$TA + a_measure_night_complete$TS) / 2.0
+  }
   
   # save the ac and a_measure_night_complete data:
   write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)

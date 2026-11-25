@@ -52,7 +52,7 @@ priors_gpp <- brms::prior("normal(0.5, 2)", nlpar = "k2", lb = 0, ub = 10)
 # add an option of using TA or TS
 temp_var = "TS"
 
-for (id in 1:nrow(site_info)) {
+for (id in 221:nrow(site_info)) {
   # id = 27
   print(id)
   name_site <- site_info$site_ID[id]
@@ -330,6 +330,13 @@ for (id in 1:nrow(site_info)) {
       # ensure nighttime NEE is positive
       if (median(data_subset$NEE) < 0.2 | mean(data_subset$NEE) < 0.2) { next }
       
+      # ensure there are limited abnormally measurements (4 times more than supposed numbers)
+      NEE_upper <- quantile(data$NEE, prob = c(0.95), na.rm = T)
+      NEE_lower <- quantile(data$NEE, prob = c(0.05), na.rm = T)
+      if ( sum(data_subset$NEE > NEE_upper) / nrow(data_subset) > 0.2 ) { next }
+      if ( sum(data_subset$NEE < NEE_lower) / nrow(data_subset) > 0.2 ) { next }
+      
+      #
       mod <- try(brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0)) # , silent = 2

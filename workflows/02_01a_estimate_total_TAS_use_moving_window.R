@@ -47,6 +47,7 @@ for (id in 1:nrow(site_info)) {
   name_site <- site_info$site_ID[id]
   print(name_site)
 
+  # if (site_info$IGBP[id] != "WET") { next }
   #-------------------------------------------DATA PREPARATION--------------------------
   # read data
   path <- file.path(dir_rawdata, "RespirationData", paste0(name_site, '_nightNEE.csv'))
@@ -293,6 +294,13 @@ for (id in 1:nrow(site_info)) {
       # ensure nighttime NEE is positive
       if (median(data_subset$NEE) < 0.2 | mean(data_subset$NEE) < 0.2) { next }
       
+      # ensure there are limited abnormally high measurements (4 times more than supposed numbers)
+      NEE_upper <- quantile(data$NEE, prob = c(0.95), na.rm = T)
+      NEE_lower <- quantile(data$NEE, prob = c(0.05), na.rm = T)
+      if ( sum(data_subset$NEE > NEE_upper) / nrow(data_subset) > 0.2 ) { next }
+      if ( sum(data_subset$NEE < NEE_lower) / nrow(data_subset) > 0.2 ) { next }
+      
+      #
       mod <- brms::brm(brms::bf(frmu, param, nl = TRUE),
                        prior = priors, data = data_subset, iter = 1000, cores =4, chains = 4, backend = "cmdstanr", 
                        control = list(adapt_delta = 0.90, max_treedepth = 15), refresh = 0) # , silent = 2
@@ -316,8 +324,8 @@ for (id in 1:nrow(site_info)) {
       data_subset$NEE_pred <- fitted(mod)[, "Estimate"]
       ER_obs_pred <- rbind(ER_obs_pred, data_subset[between(data_subset$DOY, window_start, window_end), ])
       
-      # print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
-      # lines(data_subset$TS, data_subset$NEE_pred)
+      print(plot(data_subset$TS, data_subset$NEE, main = paste(name_site, iwindow, iyear, sep = '_')))
+      lines(data_subset$TS, data_subset$NEE_pred)
       
       # model parameters
       df_site_year_window[icount, sub("_Intercept$", "", names(brms::fixef(mod)[, "Estimate"]))] <- brms::fixef(mod)[, "Estimate"]

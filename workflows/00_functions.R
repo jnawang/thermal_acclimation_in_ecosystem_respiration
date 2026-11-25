@@ -36,32 +36,55 @@ reconstruct_missing_TS <- function(
     "US-Wjs" = c("US-SRS", "US-SRM")
   )
   
-  if (!name_site %in% names(candidates))
+  if (!name_site %in% names(candidates)) {
     stop(name_site, " is not a site without soil-temperature measurements.")
+  }
   
-  if (!all(c("TIMESTAMP", "TA_F_MDS") %in% names(a)))
+  if (!all(c("TIMESTAMP", "TA_F_MDS") %in% names(a))) {
     stop(name_site, " requires TIMESTAMP and TA_F_MDS.")
+  }
   
   files <- list.files(
-    shuttle_dir, "_(HH|HR)_.*[.]csv$",
+    shuttle_dir,
+    "_(HH|HR)_.*[.]csv$",
     full.names = TRUE
   )
+  
   files <- files[!startsWith(basename(files), "._")]
   
   prepare_donor <- function(site) {
     
     file <- files[
-      grepl(paste0("_", site, "_"), basename(files), fixed = TRUE)
+      grepl(
+        paste0("_", site, "_"),
+        basename(files),
+        fixed = TRUE
+      )
     ]
     
-    if (!length(file)) stop("No Shuttle file found for ", site)
+    if (!length(file)) {
+      stop("No Shuttle file found for ", site)
+    }
     
-    hh_file <- file[grepl("_HH_", basename(file), fixed = TRUE)]
-    file <- if (length(hh_file)) hh_file[1] else file[1]
+    hh_file <- file[
+      grepl("_HH_", basename(file), fixed = TRUE)
+    ]
     
-    cfg <- ts_config[ts_config$site == site, , drop = FALSE]
+    file <- if (length(hh_file)) {
+      hh_file[1]
+    } else {
+      file[1]
+    }
     
-    if (nrow(cfg) > 1) stop(site, " has multiple configuration rows.")
+    cfg <- ts_config[
+      ts_config$site == site,
+      ,
+      drop = FALSE
+    ]
+    
+    if (nrow(cfg) > 1) {
+      stop(site, " has multiple configuration rows.")
+    }
     
     if (!nrow(cfg)) {
       cfg <- data.frame(
@@ -73,23 +96,55 @@ reconstruct_missing_TS <- function(
       )
     }
     
-    ts_var <- cfg$ts_variable[1]
-    required <- c("TIMESTAMP_START", "TA_F_MDS", ts_var)
+    ts_var <- as.character(cfg$ts_variable[1])
     
-    if (!all(required %in% names(data.table::fread(file, nrows = 0))))
-      stop(site, " is missing required variables.")
+    # Use the QC-variable name supplied in ts_config when present.
+    # Otherwise assume, for example, TS_F_MDS_1_QC.
+    if (
+      "ts_qc_variable" %in% names(cfg) &&
+      !is.na(cfg$ts_qc_variable[1]) &&
+      cfg$ts_qc_variable[1] != ""
+    ) {
+      ts_qc_var <- as.character(cfg$ts_qc_variable[1])
+    } else {
+      ts_qc_var <- paste0(ts_var, "_QC")
+    }
+    
+    required <- c(
+      "TIMESTAMP_START",
+      "TA_F_MDS",
+      ts_var,
+      ts_qc_var
+    )
+    
+    available <- names(
+      data.table::fread(file, nrows = 0)
+    )
+    
+    missing_variables <- setdiff(required, available)
+    
+    if (length(missing_variables) > 0) {
+      stop(
+        site,
+        " is missing required variables: ",
+        paste(missing_variables, collapse = ", ")
+      )
+    }
     
     x <- data.table::fread(
-      file, select = required,
+      file,
+      select = required,
       na.strings = c("NA", "NaN", "-9999", "-9999.0")
     )
     
     x[, TIMESTAMP := as.POSIXct(
       sprintf("%012s", as.character(TIMESTAMP_START)),
-      format = "%Y%m%d%H%M", tz = "UTC"
+      format = "%Y%m%d%H%M",
+      tz = "UTC"
     )]
     
     x <- x[!is.na(TIMESTAMP)]
+    
     data.table::setorder(x, TIMESTAMP)
     
     dt <- median(
@@ -97,55 +152,101 @@ reconstruct_missing_TS <- function(
       na.rm = TRUE
     )
     
-    if (!is.finite(dt) || dt <= 0)
+    if (!is.finite(dt) || dt <= 0) {
       stop("Invalid time interval for ", site)
+    }
     
     n_day <- round(24 / dt)
     
     x[, `:=`(
       donor_site = site,
       TS_observed = get(ts_var),
+      TS_observed_QC = get(ts_qc_var),
       TA_current = TA_F_MDS,
       TA_previous_1day = previous_mean(TA_F_MDS, n_day),
       TA_previous_8day = previous_mean(
-        TA_F_MDS, n_day * long_mean_days
+        TA_F_MDS,
+        n_day * long_mean_days
       )
     )]
     
-    x[is.na(TA_previous_1day),
-      TA_previous_1day := TA_current]
-    
-    x[is.na(TA_previous_8day),
-      TA_previous_8day := TA_current]
-    
-    keep <- rep(TRUE, nrow(x))
-    date <- as.Date(x$TIMESTAMP, tz = "UTC")
-    
-    if (!is.na(cfg$training_start[1]))
-      keep <- keep & date >= cfg$training_start[1]
-    
-    if (!is.na(cfg$training_end[1]))
-      keep <- keep & date <= cfg$training_end[1]
-    
-    if (!is.na(cfg$ta_min[1]))
-      keep <- keep & x$TA_F_MDS > cfg$ta_min[1]
-    
-    vars <- c(
-      "TS_observed", "TA_current",
-      "TA_previous_1day", "TA_previous_8day"
-    )
+    x[
+      is.na(TA_previous_1day),
+      TA_previous_1day := TA_current
+    ]
     
     x[
-      keep & complete.cases(x[, ..vars]),
-      c("donor_site", vars),
+      is.na(TA_previous_8day),
+      TA_previous_8day := TA_current
+    ]
+    
+    # Only measured donor soil temperature is used for training.
+    keep <- !is.na(x$TS_observed_QC) &
+      x$TS_observed_QC == 0
+    
+    date <- as.Date(x$TIMESTAMP, tz = "UTC")
+    
+    if (!is.na(cfg$training_start[1])) {
+      keep <- keep &
+        date >= as.Date(cfg$training_start[1])
+    }
+    
+    if (!is.na(cfg$training_end[1])) {
+      keep <- keep &
+        date <= as.Date(cfg$training_end[1])
+    }
+    
+    if (!is.na(cfg$ta_min[1])) {
+      keep <- keep &
+        x$TA_F_MDS > cfg$ta_min[1]
+    }
+    
+    model_variables <- c(
+      "TS_observed",
+      "TA_current",
+      "TA_previous_1day",
+      "TA_previous_8day"
+    )
+    
+    keep <- keep &
+      complete.cases(x[, ..model_variables])
+    
+    training <- x[
+      keep,
+      c("donor_site", model_variables),
       with = FALSE
     ]
+    
+    if (nrow(training) < 30) {
+      stop(
+        site,
+        " has too few measured soil-temperature observations: ",
+        nrow(training)
+      )
+    }
+    
+    training
   }
   
-  donor_data <- lapply(candidates[[name_site]], prepare_donor)
+  donor_data <- lapply(
+    candidates[[name_site]],
+    prepare_donor
+  )
+  
   names(donor_data) <- candidates[[name_site]]
   
-  training_data <- data.table::rbindlist(donor_data)
+  training_data <- data.table::rbindlist(
+    donor_data,
+    use.names = TRUE
+  )
+  
+  if (nrow(training_data) < 30) {
+    stop(
+      name_site,
+      " has too few measured donor soil-temperature observations: ",
+      nrow(training_data)
+    )
+  }
   
   model <- lm(
     TS_observed ~ TA_current +
@@ -158,16 +259,21 @@ reconstruct_missing_TS <- function(
     na.rm = TRUE
   )
   
-  if (!is.finite(dt) || dt <= 0)
+  if (!is.finite(dt) || dt <= 0) {
     stop("Invalid time interval for ", name_site)
+  }
   
   n_day <- round(24 / dt)
   
   predictors <- data.frame(
     TA_current = a$TA_F_MDS,
-    TA_previous_1day = previous_mean(a$TA_F_MDS, n_day),
+    TA_previous_1day = previous_mean(
+      a$TA_F_MDS,
+      n_day
+    ),
     TA_previous_8day = previous_mean(
-      a$TA_F_MDS, n_day * long_mean_days
+      a$TA_F_MDS,
+      n_day * long_mean_days
     )
   )
   
@@ -183,10 +289,14 @@ reconstruct_missing_TS <- function(
     is.na(predictors$TA_previous_8day)
   ]
   
-  a$TS_F_MDS_1 <- predict(model, newdata = predictors)
+  a$TS_F_MDS_1 <- predict(
+    model,
+    newdata = predictors
+  )
   
-  if ("TA_F_MDS_QC" %in% names(a))
+  if ("TA_F_MDS_QC" %in% names(a)) {
     a$TS_F_MDS_1_QC <- a$TA_F_MDS_QC
+  }
   
   list(
     data = a,
@@ -194,24 +304,56 @@ reconstruct_missing_TS <- function(
     training_n = nrow(training_data),
     n_per_day = n_day,
     donors_used = candidates[[name_site]],
-    donor_training_n = vapply(donor_data, nrow, integer(1)),
+    donor_training_n = vapply(
+      donor_data,
+      nrow,
+      integer(1)
+    ),
     coefficients = coef(model)
   )
 }
 
 
+
 # Second one: estimate TS at sites with some TS measurements
 
 # Sites using all TS_F_MDS_1 observations with TA_F_MDS > 0
+# These sites have measured complete TS, but growing-season inter-annual TA and TS correlation, p > 0.05 and R2 < 0.5
 all_data_sites <- c(
-  "AU-DaS","AU-Dry","AU-Lit","AU-Ync","US-Dk2","DE-HoH","FR-Hes","JP-Yms",
-  "BE-Bra","CA-Cbo","CA-Gro","CA-Mer","CA-Obs","CA-TP3","CH-Lae","DE-RuC","DE-SfS",
-  "IT-Ren","NL-Loo","US-Bar","US-BZB","US-BZF","US-BZS","US-CMW","US-GLE","US-Ha2","US-IB2",
-  "US-Jo2","US-KL2","US-Kon","US-LL1","US-MBP","US-Myb","US-NC4","US-Tw1","US-ICt","BE-Dor",
-  "CA-TP4","UK-AMo","RU-Fyo","ZA-Kru","IT-Tor","AT-Neu","BJ-Nhu","CH-Oe3","CN-YaS",
-  "DE-GsB","ES-Amo","FI-Var","FR-LBr","JP-Fjy","RU-Ege","SN-Dhr","US-TKs","CH-Rtb","CL-SDP",
-  "CN-HaM","IT-Cpz","NZ-ADw","US-Dk3","DE-Akm","US-Los","US-SRG","CA-Man","US-Ced","US-Ho1",
-  "CZ-RAJ","US-Ha1","US-BZo","US-SRS","US-Oho","CA-LP1","CA-Ca3","CA-ARB","CA-ARF"
+  # sites lack of coverage or inter-annual growing-season TA and TS correlation p < 0.05
+  "AT-Neu", "AU-DaS", "AU-Lit", "AU-TTE", "AU-Tum", "BE-Dor",
+  "BJ-Nhu", "CA-Man", "CA-Mer", "CA-TP3", "CA-TP4", "CH-Aws",
+  "CH-Lae", "CH-Oe3", "CH-Rtb", "CL-SDP", "CN-BeO", "CN-Du2",
+  "CN-Dzo", "CN-Ha2", "CN-HaM", "CN-Sdq", "CN-YaS", "CZ-RAJ",
+  "DE-GsB", "DE-HoH", "DE-Hzd", "DE-RuC", "DE-SfS", "DK-Sor",
+  "ES-Amo", "FR-LBr", "IL-Yat", "IT-Cpz", "IT-Ren", "IT-Ro2",
+  "JP-Fjy", "JP-Yms", "JP-Ynf", "NL-Loo", "NZ-ADw", "RU-Fyo",
+  "SN-Dhr", "US-BZB", "US-BZF", "US-BZo", "US-CMW", "US-Ced",
+  "US-ChR", "US-Dk2", "US-Dk3", "US-Ha1", "US-Kon", "US-MBP",
+  "US-Myb", "US-NC2", "US-NC4", "US-NR1", "US-Oho", "US-Rms",
+  "US-SRG", "US-Syv", "US-TKs", "US-Tw1", "CA-Obs", "US-BZS",
+  "US-Ha2", "US-IB2", "US-KL2", "US-LL1", "ZA-Kru", "CA-Ca3",
+  "US-Ho1", "FR-FBn", "FR-Fon", "DE-Akm", "FR-Hes", "JP-Api",
+  "JP-Spp", "JP-Tak", "SE-Svb", "AU-Whr", "JP-Khw", "FR-Bil",
+  "CR-AqC", "BR-ATT", "US-Los",     
+  # here, US-Los does not have enough coverage
+  
+  # below were found for growing-season validation (p > 0.05 | r < 0.6)
+  "BE-Vie", "CZ-BK1", "FI-Var", "GF-Guy", "RU-Ege", "UK-AMo", "US-SRS", 
+  "AU-Dry", "CA-LP1", "CZ-wet", "DE-Gri", "ES-LJu", "US-Me2"
+  
+  #
+  # "AU-DaS","AU-Dry","AU-Lit","AU-Ync","US-Dk2","DE-HoH","FR-Hes","JP-Yms",
+  # "BE-Bra","CA-Cbo","CA-Gro","CA-Mer","CA-Obs","CA-TP3","CH-Lae","DE-RuC","DE-SfS",
+  # "IT-Ren","NL-Loo","US-Bar","US-BZB","US-BZF","US-BZS","US-CMW","US-GLE","US-Ha2","US-IB2",
+  # "US-Jo2","US-KL2","US-Kon","US-LL1","US-MBP","US-Myb","US-NC4","US-Tw1","US-ICt","BE-Dor",
+  # "CA-TP4","UK-AMo","RU-Fyo","ZA-Kru","IT-Tor","AT-Neu","BJ-Nhu","CH-Oe3","CN-YaS",
+  # "DE-GsB","ES-Amo","FI-Var","FR-LBr","JP-Fjy","RU-Ege","SN-Dhr","US-TKs","CH-Rtb","CL-SDP",
+  # "CN-HaM","IT-Cpz","NZ-ADw","US-Dk3","DE-Akm","US-Los","US-SRG","CA-Man","US-Ced","US-Ho1",
+  # "CZ-RAJ","US-Ha1","US-BZo","US-SRS","US-Oho","CA-LP1","CA-Ca3","CA-ARB","CA-ARF",
+  # "AU-Cpr", "BE-Vie", "CH-Aws", "CN-Aro", "CN-Dzo", "CN-Sdq", "CZ-BK1", "CZ-wet", "DE-Gri", "DE-Hai",
+  # "DE-Hzd", "DE-Lnf", "FR-Fon", "GF-Guy", "IL-Yat", "IT-MBo", "JP-Tak", "SE-Deg", "US-KM4", "US-Me2",
+  # "US-MMS", "US-NC2", "US-NR1", "US-Rms", "US-Slt", "US-Syv", "US-UMB", "US-Var"
 )
 
 config_all <- tibble(
@@ -225,37 +367,35 @@ config_all <- tibble(
 # Sites using restricted training periods
 config_period <- tribble(
   ~site,   ~ts_variable, ~training_start, ~training_end, ~ta_min,
-  "AU-Rob","TS_F_MDS_1","2013-01-01","2022-09-12",NA_real_,
-  "AU-TTE","TS_F_MDS_1","2012-01-01","2019-12-26",NA_real_,
-  "AU-Whr","TS_F_MDS_1","2011-01-01","2016-12-27",NA_real_,
-  "AU-Wrr","TS_F_MDS_1","2013-01-01","2018-12-28",NA_real_,
-  "BJ-Bfg","TS_F_MDS_1","2008-01-01","2013-12-27",NA_real_,
-  "ES-Agu","TS_F_MDS_1","2006-01-01","2011-12-28",NA_real_,
-  "US-Jo1","TS_F_MDS_1","2010-01-01","2015-12-28",NA_real_,
-  "AU-Wom","TS_F_MDS_1","2024-10-30","2025-12-31",NA_real_,
-  "TH-Mae","TS_F_MDS_1","2014-02-16","2016-12-31",NA_real_,
-  "CN-HeM","TS_F_MDS_1","2018-09-15","2024-12-31",NA_real_,
-  "CN-Zha","TS_F_MDS_1","2017-09-14","2023-12-31",NA_real_,
-  "EE-Stg","TS_F_MDS_1","2023-06-01","2024-12-31",NA_real_,
-  "IT-Cp2","TS_F_MDS_1","2012-01-01","2023-12-23",NA_real_,
-  "JP-Khw","TS_F_MDS_1","2017-02-09","2021-12-31",NA_real_,
+  "AU-Rob","TS_F_MDS_1","2013-01-01","2022-09-12",0,
+  "AU-Wrr","TS_F_MDS_1","2013-01-01","2018-12-28",0,
+  "BJ-Bfg","TS_F_MDS_1","2008-01-01","2015-12-31",0,
+  "ES-Agu","TS_F_MDS_1","2006-01-01","2012-12-31",0,
+  "US-Jo1","TS_F_MDS_1","2010-01-01","2016-12-31",0,
+  "AU-Wom","TS_F_MDS_1","2024-10-30","2025-12-31",0,
+  "TH-Mae","TS_F_MDS_1","2014-02-16","2016-12-31",0,
+  "CN-HeM","TS_F_MDS_1","2018-09-15","2024-12-31",0,
+  "CN-Zha","TS_F_MDS_1","2017-09-14","2023-12-31",0,
+  "EE-Stg","TS_F_MDS_1","2023-06-01","2024-12-31",0,
+  "IT-Cp2","TS_F_MDS_1","2012-01-01","2023-12-23",0,
   "CA-SCC","TS_F_MDS_1","2023-11-03","2024-12-31",0,
   "RU-SkP","TS_F_MDS_1","2009-09-14","2014-12-31",0,
-  "US-Elm","TS_F_MDS_1","2008-01-01","2013-09-14",0,
   "US-Ho2","TS_F_MDS_1","2008-01-01","2022-12-31",0,
-  "AU-Cow","TS_F_MDS_1","2011-01-01","2020-12-31",0,
+  "AU-Cow","TS_F_MDS_1","2011-01-01","2016-12-31",0,
   "FR-Pue","TS_F_MDS_1","2022-01-01",NA_character_,0,
-  "FR-Bil","TS_F_MDS_1","2020-01-01",NA_character_,0,
   "FI-Sod","TS_F_MDS_1","2006-01-01",NA_character_,0,
   "DE-RuW","TS_F_MDS_1","2019-01-01",NA_character_,0,
   "US-Ro4","TS_F_MDS_1","2015-01-01",NA_character_,0,
-  "AU-How","TS_F_MDS_1","2004-01-01","2024-12-31",0,
+  "AU-How","TS_F_MDS_1","2007-01-01","2024-12-31",0,
   "US-PFa","TS_F_MDS_1","2023-01-01","2024-12-31",0,
-  "CR-AqC","TS_F_MDS_1","2016-01-01","2016-12-31",0,
   "IT-SRo","TS_F_MDS_1","2000-01-01","2012-12-31",0,
   "CN-Dsh","TS_F_MDS_1","2014-01-01","2021-12-31",0,
-  "US-Prr","TS_F_MDS_1","2014-01-01","2022-12-31",0,
-  "US-ICs","TS_F_MDS_1","2010-01-01","2025-12-31",0
+  "US-Prr","TS_F_MDS_1","2011-01-01","2018-12-31",0,
+  "US-ICs","TS_F_MDS_1","2010-01-01","2025-12-31",0,
+  "US-Uaf","TS_F_MDS_1","2008-01-01","2025-12-31",0,
+  "DE-Tha","TS_F_MDS_1","2006-01-01","2018-12-31",0,
+  "BR-Tgf","TS_F_MDS_1","2014-05-20","2015-05-19",0,
+  "BR-Tgc","TS_F_MDS_1","2016-10-25","2017-03-24",0
 ) %>%
   mutate(
     training_start=as.Date(training_start),
@@ -295,87 +435,169 @@ previous_mean <- function(x,n){
   result
 }
 
-reconstruct_TS <- function(a,name_site,ts_config,long_mean_days=8){
-  cfg <- ts_config %>% filter(site==name_site)
+reconstruct_TS <- function(
+    a,
+    name_site,
+    ts_config,
+    long_mean_days = 8
+) {
+  cfg <- ts_config %>% filter(site == name_site)
   
-  if(nrow(cfg)==0){
-    return(list(data=a,model=NULL,training_n=0))
+  if (nrow(cfg) == 0) {
+    return(list(
+      data = a,
+      model = NULL,
+      training_n = 0,
+      message = "No configuration row"
+    ))
   }
   
-  if(nrow(cfg)>1){
-    stop(paste(name_site,"has multiple configuration rows."))
+  if (nrow(cfg) > 1) {
+    stop(paste(name_site, "has multiple configuration rows."))
   }
   
-  required <- c("TIMESTAMP","TA_F_MDS","TA_F_MDS_QC",cfg$ts_variable)
-  missing_columns <- setdiff(required,names(a))
+  ts_variable <- as.character(cfg$ts_variable[1])
   
-  if(length(missing_columns)>0){
-    stop(paste(name_site,"is missing:",paste(missing_columns,collapse=", ")))
+  # Use a configured QC-variable name when provided; otherwise assume
+  # that the QC column is named, for example, TS_F_MDS_1_QC.
+  if ("ts_qc_variable" %in% names(cfg) &&
+      !is.na(cfg$ts_qc_variable[1]) &&
+      cfg$ts_qc_variable[1] != "") {
+    ts_qc_variable <- as.character(cfg$ts_qc_variable[1])
+  } else {
+    ts_qc_variable <- paste0(ts_variable, "_QC")
   }
   
-  dt_hours <- median(as.numeric(diff(a$TIMESTAMP),units="hours"),na.rm=TRUE)
-  n_per_day <- round(24/dt_hours)
-  n_long <- n_per_day*long_mean_days
+  required <- c(
+    "TIMESTAMP",
+    "TA_F_MDS",
+    "TA_F_MDS_QC",
+    ts_variable,
+    ts_qc_variable
+  )
+  
+  missing_columns <- setdiff(required, names(a))
+  
+  if (length(missing_columns) > 0) {
+    stop(
+      paste(
+        name_site,
+        "is missing:",
+        paste(missing_columns, collapse = ", ")
+      )
+    )
+  }
+  
+  if (!inherits(a$TIMESTAMP, "POSIXct")) {
+    stop("TIMESTAMP must be a POSIXct variable.")
+  }
+  
+  dt_hours <- median(
+    as.numeric(diff(a$TIMESTAMP), units = "hours"),
+    na.rm = TRUE
+  )
+  
+  if (!is.finite(dt_hours) || dt_hours <= 0) {
+    stop(paste(name_site, "has an invalid time interval."))
+  }
+  
+  n_per_day <- round(24 / dt_hours)
+  n_long <- n_per_day * long_mean_days
   
   d <- a %>%
     mutate(
-      .date=as.Date(TIMESTAMP),
-      TA_current=TA_F_MDS,
-      TA_previous_1day=previous_mean(TA_F_MDS,n_per_day),
-      TA_previous_long=previous_mean(TA_F_MDS,n_long)
+      .date = as.Date(TIMESTAMP),
+      TA_current = TA_F_MDS,
+      TA_previous_1day = previous_mean(TA_F_MDS, n_per_day),
+      TA_previous_long = previous_mean(TA_F_MDS, n_long)
     )
   
-  # Allow prediction at the beginning of the record
+  # Permit prediction at the beginning of the time series.
   d$TA_previous_1day[is.na(d$TA_previous_1day)] <-
     d$TA_current[is.na(d$TA_previous_1day)]
   
   d$TA_previous_long[is.na(d$TA_previous_long)] <-
     d$TA_current[is.na(d$TA_previous_long)]
   
-  keep <- rep(TRUE,nrow(d))
+  keep <- rep(TRUE, nrow(d))
   
-  if(!is.na(cfg$training_start)){
-    keep <- keep & d$.date>=cfg$training_start
+  # Use only measured soil temperature.
+  keep <- keep &
+    !is.na(d[[ts_qc_variable]]) &
+    d[[ts_qc_variable]] == 0
+  
+  if (!is.na(cfg$training_start[1])) {
+    keep <- keep &
+      d$.date >= as.Date(cfg$training_start[1])
   }
   
-  if(!is.na(cfg$training_end)){
-    keep <- keep & d$.date<=cfg$training_end
+  if (!is.na(cfg$training_end[1])) {
+    keep <- keep &
+      d$.date <= as.Date(cfg$training_end[1])
   }
   
-  if(!is.na(cfg$ta_min)){
-    keep <- keep & d$TA_F_MDS>cfg$ta_min
+  if (!is.na(cfg$ta_min[1])) {
+    keep <- keep &
+      d$TA_F_MDS > cfg$ta_min[1]
   }
   
   model_variables <- c(
-    cfg$ts_variable,
+    ts_variable,
     "TA_current",
     "TA_previous_1day",
     "TA_previous_long"
   )
   
-  keep <- keep & complete.cases(d[,model_variables])
-  training_data <- d[keep,]
+  keep <- keep &
+    complete.cases(d[, model_variables, drop = FALSE])
   
-  if(nrow(training_data)<30){
-    stop(paste(name_site,"has too few training observations."))
+  training_data <- d[keep, ]
+  
+  if (nrow(training_data) < 30) {
+    stop(
+      paste(
+        name_site,
+        "has too few measured soil-temperature observations:",
+        nrow(training_data)
+      )
+    )
   }
   
   model_formula <- reformulate(
-    c("TA_current","TA_previous_1day","TA_previous_long"),
-    response=cfg$ts_variable
+    c(
+      "TA_current",
+      "TA_previous_1day",
+      "TA_previous_long"
+    ),
+    response = ts_variable
   )
   
-  mod_TS <- lm(model_formula,data=training_data)
+  mod_TS <- lm(
+    model_formula,
+    data = training_data
+  )
   
-  # Replace the complete TS_F_MDS_1 time series
-  a$TS_F_MDS_1 <- predict(mod_TS,newdata=d)
+  predicted_TS <- predict(
+    mod_TS,
+    newdata = d
+  )
+  
+  # Replace the complete TS series with reconstructed values.
+  a$TS_F_MDS_1 <- predicted_TS
+  
+  # This QC now represents the quality of the TA used for prediction.
   a$TS_F_MDS_1_QC <- a$TA_F_MDS_QC
   
   list(
-    data=a,
-    model=mod_TS,
-    training_n=nrow(training_data),
-    n_per_day=n_per_day
+    data = a,
+    model = mod_TS,
+    training_n = nrow(training_data),
+    n_per_day = n_per_day,
+    time_step_hours = dt_hours,
+    ts_variable = ts_variable,
+    ts_qc_variable = ts_qc_variable,
+    training_start = min(training_data$.date),
+    training_end = max(training_data$.date)
   )
 }
 

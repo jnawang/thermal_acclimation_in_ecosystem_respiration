@@ -1,12 +1,8 @@
 # Purpose of this script: prepare for data for fitting temperature-respiration curves for AmeriFlux sites. 
 # Output of this script: two .csv files. One for filtered night NEE, and the other for gap-filled whole time-series.
 # Author: Junna Wang
-#  It will take ~2 hours to finish running this script. 
+#  It will take ~35 min to finish running this script. 
 
-# Special attention: 
-# SWC measurements of some old sites is every 4 hours, so these SWC data needs to interpolate. 
-# we added 6 more Ameriflux sites into the data in Aug. 2025
-# we added 2 more tropical Ameriflux sites into the data in Dec. 2025
 
 library(librarian)
 shelf(dplyr, lubridate, amerifluxr, suncalc, REddyProc, lutz, zoo)
@@ -512,9 +508,6 @@ for (id in 1:nrow(site_info)) {
     ac$NEE_uStar_f[is.na(ac$NEE_uStar_f)] <- ac$NEE_gf[is.na(ac$NEE_uStar_f)]
   }
 
-  
-  # only keep years in a_measure_night_complete
-  ac <- ac %>% filter(YEAR %in% unique(a_measure_night_complete$YEAR))
   
   # save the ac and a_measure_night_complete data:
   write.csv(ac, file=file.path(dir_rawdata, "RespirationData", paste0(name_site, '_ac.csv')), row.names = F)
